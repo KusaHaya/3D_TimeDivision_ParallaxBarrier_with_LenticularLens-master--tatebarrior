@@ -68,6 +68,8 @@ float alphax = 0.0;
 int habat = 0;
 
 float crosstalkFactor = 0.15f; // クロストーク係数の初期値 (15%)
+float headTrackShift = 0.0f; // ヘッドトラッキングによるシフト量（サブピクセル単位）
+
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
 
@@ -273,15 +275,21 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 			haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
 			// haba = int(haba_first * caliZ / tmpZ);
 			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX) + (tmpY - caliY) / 3) * 1000 / DotSubPixel;//face moves by sub-pixel units
-			int move = 0;
-			if (delta < 0.0)move = (int)(delta - 0.5);
-			else move = (int)(delta + 0.5);
-			//			move = (move / 3) * 3;
-			MiddleLine = MiddleDefault - move;
-			//			if (abs(pMiddleLine - MiddleLine) < 10){
-			//				MiddleLine = pMiddleLine;
-			//			}
-			//			pMiddleLine = MiddleLine;
+
+			headTrackShift = delta;
+
+			//int move = 0;
+			//if (delta < 0.0)move = (int)(delta - 0.5);
+			//else move = (int)(delta + 0.5);
+			////			move = (move / 3) * 3;
+			//MiddleLine = MiddleDefault - move;
+			////			if (abs(pMiddleLine - MiddleLine) < 10){
+			////				MiddleLine = pMiddleLine;
+			////			}
+			////			pMiddleLine = MiddleLine;
+		}
+		else {
+			headTrackShift = 0;
 		}
 		buffer->consume(sizeof(float) * 6);
 		Receive(client, callback);
@@ -718,7 +726,7 @@ void RGBCG(int RGB)
 }
 
 // グローバル変数に追加
-float columnPitch = 4.0f;     // 物理バリアのピッチ（左右1ペアの幅、ピクセル単位）
+float columnPitch = 4.0f;     // 物理バリアのピッチ（４ピクセル=3sub×４時分割）
 float subpixelShift = 0.0f;   // キャリブレーション用の水平シフト量
 
 // RGBCG_image() の代わりとなる新しい関数
@@ -735,14 +743,17 @@ void renderInterleavedImage() {
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, imageR); // imageRをユニット1に
 
+	float timeDivisionShift = (float)kk * 3.0f; // 3サブピクセルシフトを仮定
+	float finalShift = subpixelShift + timeDivisionShift + headTrackShift;
+
 	// 4. uniform変数に値を設定
 	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0); // ユニット0番を使う
 	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1); // ユニット1番を使う
 	glUniform1f(glGetUniformLocation(shaderProgram, "columnPitch"), columnPitch);
 	glUniform1f(glGetUniformLocation(shaderProgram, "screenWidth"), (float)IM_W);
-	glUniform1f(glGetUniformLocation(shaderProgram, "subpixelShift"), subpixelShift);
-
-	glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk); // 現在のkkの値を送る
+	//glUniform1f(glGetUniformLocation(shaderProgram, "subpixelShift"), subpixelShift);
+	glUniform1f(glGetUniformLocation(shaderProgram, "finalShift"), finalShift);
+	//glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk); // 現在のkkの値を送る
 
 	// 5. 描画命令（これ一度でインターリーブが完了する）
 	glDrawArrays(GL_TRIANGLES, 0, 6);
