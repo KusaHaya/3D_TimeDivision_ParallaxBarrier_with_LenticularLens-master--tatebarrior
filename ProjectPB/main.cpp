@@ -567,7 +567,7 @@ void init(void){
 
 	Frame_Buffer_Sets();
 
-	shaderProgram = LoadShaders("passthrough.vert", "simpleTexture.frag");
+	shaderProgram = LoadShaders("passthrough.vert", "interleave.frag");
 
 
 	TeapotInit();//プラグラム実行中に m 1 の順で押すと表示されるteapotへのテクスチャマッピングの準備
@@ -717,160 +717,94 @@ void RGBCG(int RGB)
 	glDisable(GL_STENCIL_TEST);
 }
 
+// グローバル変数に追加
+float columnPitch = 4.0f;     // 物理バリアのピッチ（左右1ペアの幅、ピクセル単位）
+float subpixelShift = 0.0f;   // キャリブレーション用の水平シフト量
+
+// RGBCG_image() の代わりとなる新しい関数
+void renderInterleavedImage() {
+	// 1. シェーダーを有効化
+	glUseProgram(shaderProgram);
+
+	// 2. 描画用の四角形(VAO)をバインド
+	glBindVertexArray(quadVAO);
+
+	// 3. 左右のテクスチャを異なるユニットにバインド
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, imageL); // imageLをユニット0に
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, imageR); // imageRをユニット1に
+
+	// 4. uniform変数に値を設定
+	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0); // ユニット0番を使う
+	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1); // ユニット1番を使う
+	glUniform1f(glGetUniformLocation(shaderProgram, "columnPitch"), columnPitch);
+	glUniform1f(glGetUniformLocation(shaderProgram, "screenWidth"), (float)IM_W);
+	glUniform1f(glGetUniformLocation(shaderProgram, "subpixelShift"), subpixelShift);
+
+	glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk); // 現在のkkの値を送る
+
+	// 5. 描画命令（これ一度でインターリーブが完了する）
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	// 6. 後片付け
+	glBindVertexArray(0);
+	glUseProgram(0);
+	glActiveTexture(GL_TEXTURE0); // 念のためユニットを0に戻す
+}
+
 //void RGBCG_image(int RGB)
 //{
 //	set_stencil_mask(RGB);
 //
-//	if (RGB == 1)	glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-//	if (RGB == 2)	glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-//	if (RGB == 0)	glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+//	if (RGB == 1) glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
+//	if (RGB == 2) glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
+//	if (RGB == 0) glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
+//
 //	glEnable(GL_STENCIL_TEST);
 //
-//	glClear(GL_COLOR_BUFFER_BIT); // add for fbo
+//	// シェーダーの使用を開始
+//	glUseProgram(shaderProgram);
+//
+//	// 描画設定
+//	glViewport(0, 0, IM_W, IM_H);
+//
+//	// 描画用の四角形(VAO)をバインド
+//	glBindVertexArray(quadVAO);
+//
+//	// --- 右目用の描画 (ステンシル値が1の領域) ---
 //	if (eyeright == 1) {
 //		glClear(GL_DEPTH_BUFFER_BIT);
 //		glStencilFunc(GL_EQUAL, 0x1, 0x1);
 //		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-//		glOrtho(0.0, IM_W, 0.0, IM_H, 0.0, 1.0);
-//		glViewport(0, 0, IM_W, IM_H);
-//		glMatrixMode(GL_PROJECTION);
-//		glLoadIdentity();
-//		glEnable(GL_TEXTURE_2D);
-//		glEnable(GL_BLEND);
-//		glBlendFunc(GL_ONE, GL_ONE);
-//		glDisable(GL_DEPTH_TEST);
+//
+//		// 0番のテクスチャユニットに右目画像をセット
+//		glActiveTexture(GL_TEXTURE0);
 //		glBindTexture(GL_TEXTURE_2D, imageR);
-//		{
-//			glEnable(GL_TEXTURE_2D);
-//			glBegin(GL_QUADS);
+//		glUniform1i(glGetUniformLocation(shaderProgram, "displayTexture"), 0);
 //
-//
-//			glTexCoord2f(0, 1); glVertex3d(0, 0, 0);
-//			glTexCoord2f(0, 0);	glVertex3d(0, IM_H, 0);
-//			glTexCoord2f(1, 0);	glVertex3d(IM_W, IM_H, 0);
-//			glTexCoord2f(1, 1);	glVertex3d(IM_W, 0, 0);
-//
-//			glEnd();
-//		}
-//		glBindTexture(GL_TEXTURE_2D, 0);
-//
-//		glDisable(GL_BLEND);
-//		glEnable(GL_DEPTH_TEST);
-//		glBindTexture(GL_TEXTURE_2D, 0);
-//		glDisable(GL_TEXTURE_2D);
+//		glDrawArrays(GL_TRIANGLES, 0, 6);
 //	}
+//
+//	// --- 左目用の描画 (ステンシル値が0の領域) ---
 //	if (eyeleft == 1) {
 //		glClear(GL_DEPTH_BUFFER_BIT);
 //		glStencilFunc(GL_EQUAL, 0x0, 0x1);
 //		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-//		glOrtho(0.0, IM_W, 0.0, IM_H, 0.0, 1.0);
-//		glViewport(0, 0, IM_W, IM_H);
-//		glMatrixMode(GL_PROJECTION);
-//		glLoadIdentity();
-//		glEnable(GL_TEXTURE_2D);
-//		glEnable(GL_BLEND);
-//		glBlendFunc(GL_ONE, GL_ONE);
-//		glDisable(GL_DEPTH_TEST);
+//
+//		// 0番のテクスチャユニットに左目画像をセット
+//		glActiveTexture(GL_TEXTURE0);
 //		glBindTexture(GL_TEXTURE_2D, imageL);
-//		{
-//			glEnable(GL_TEXTURE_2D);
-//			glBegin(GL_QUADS);
+//		glUniform1i(glGetUniformLocation(shaderProgram, "displayTexture"), 0);
 //
-//
-//			glTexCoord2f(0, 1); glVertex3d(0, 0, 0);
-//			glTexCoord2f(0, 0);	glVertex3d(0, IM_H, 0);
-//			glTexCoord2f(1, 0);	glVertex3d(IM_W, IM_H, 0);
-//			glTexCoord2f(1, 1);	glVertex3d(IM_W, 0, 0);
-//
-//			glEnd();
-//		}
-//		glBindTexture(GL_TEXTURE_2D, 0);
-//
-//		glDisable(GL_BLEND);
-//		glEnable(GL_DEPTH_TEST);
-//		glBindTexture(GL_TEXTURE_2D, 0);
-//		glDisable(GL_TEXTURE_2D);
+//		glDrawArrays(GL_TRIANGLES, 0, 6);
 //	}
-//	glDisable(GL_TEXTURE_3D);
-//	glEnable(GL_BLEND);
-//	glDisable(GL_STENCIL_TEST);
-//	glBlendFunc(GL_DST_COLOR,GL_ZERO);
 //
-//	glMatrixMode(GL_PROJECTION);
-//	glLoadIdentity();
-//	glOrtho(0, IM_W, 0, IM_H, -1, 1);
-//	glMatrixMode(GL_MODELVIEW);
-//	glLoadIdentity();
-//
-//	glBegin(GL_QUADS);
-//	for (int x = 1; x < IM_W; x += 4) {
-//		float alpha = 0.0f+ alphax; // 1.0より小さい値で暗くする
-//		glColor4f(alpha, alpha, alpha, 1.0f); // RGBを暗くする（透過なし）
-//		glVertex2f(x + habat, 0);
-//		glVertex2f(x + 2 + habat, 0);
-//		glVertex2f(x + 2 + habat, IM_H);//habat = 暗くする間隔
-//		glVertex2f(x + habat, IM_H);
-//	}
-//	glEnd();
-//
-//	glDisable(GL_BLEND);
-//	glColor4f(1.0f, 1.0f, 1.0f, 1.0f); // 色設定をリセット
-//
+//	// 後片付け
+//	glBindVertexArray(0);
+//	glUseProgram(0);
 //	glDisable(GL_STENCIL_TEST);
 //}
-
-void RGBCG_image(int RGB)
-{
-	set_stencil_mask(RGB);
-
-	if (RGB == 1) glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-	if (RGB == 2) glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-	if (RGB == 0) glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-
-	glEnable(GL_STENCIL_TEST);
-
-	// シェーダーの使用を開始
-	glUseProgram(shaderProgram);
-
-	// 描画設定
-	glViewport(0, 0, IM_W, IM_H);
-
-	// 描画用の四角形(VAO)をバインド
-	glBindVertexArray(quadVAO);
-
-	// --- 右目用の描画 (ステンシル値が1の領域) ---
-	if (eyeright == 1) {
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glStencilFunc(GL_EQUAL, 0x1, 0x1);
-		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-
-		// 0番のテクスチャユニットに右目画像をセット
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, imageR);
-		glUniform1i(glGetUniformLocation(shaderProgram, "displayTexture"), 0);
-
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-	}
-
-	// --- 左目用の描画 (ステンシル値が0の領域) ---
-	if (eyeleft == 1) {
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glStencilFunc(GL_EQUAL, 0x0, 0x1);
-		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-
-		// 0番のテクスチャユニットに左目画像をセット
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, imageL);
-		glUniform1i(glGetUniformLocation(shaderProgram, "displayTexture"), 0);
-
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-	}
-
-	// 後片付け
-	glBindVertexArray(0);
-	glUseProgram(0);
-	glDisable(GL_STENCIL_TEST);
-}
 
 int SPEED = 6;
 void DTimer(int totalMilliSeconds)
@@ -946,10 +880,12 @@ void disp(void){
 			// 画像モード
 			// FBOへの描画
 			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
-			calculate_stencil();
-			RGBCG_image(0);
-			RGBCG_image(1);
-			RGBCG_image(2);
+			// 変更後：新しい関数を一度呼び出すだけ
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBOをクリア
+			glViewport(0, 0, IM_W, IM_H);
+			renderInterleavedImage();
+
+			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -1252,10 +1188,10 @@ static void KeyEvent(unsigned char key, int x, int y){
 		VideoMode->Mode3D = !VideoMode->Mode3D;
 		glutDisplayFunc(disp);
 		break;
-	case 'p':
+	/*case 'p':
 		VideoMode->printflag = false;
 		glutDisplayFunc(disp);
-		break;
+		break;*/
 	case 'R':
 		ReserveLR = !ReserveLR;
 		if (ReserveLR) printf("RL\n");
@@ -1293,6 +1229,23 @@ static void KeyEvent(unsigned char key, int x, int y){
 		break;
 	case'D':
 		habat += 1;
+		break;
+		// KeyEvent() 関数にキーを追加
+	case 'p': // ピッチを広げる
+		columnPitch += 0.01f;
+		printf("Column Pitch: %f\n", columnPitch);
+		break;
+	case ';': // ピッチを狭める
+		columnPitch -= 0.01f;
+		printf("Column Pitch: %f\n", columnPitch);
+		break;
+	case '\'': // 右にシフト
+		subpixelShift += 0.1f;
+		printf("Subpixel Shift: %f\n", subpixelShift);
+		break;
+	case '/': // 左にシフト
+		subpixelShift -= 0.1f;
+		printf("Subpixel Shift: %f\n", subpixelShift);
 		break;
 
 	}
