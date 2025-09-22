@@ -259,6 +259,9 @@
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\boost_1_73_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <ClCompile Include="Media.cpp" />
+    <None Include="sbs_interleave.frag">
+      <FileType>CppCode</FileType>
+    </None>
     <ClCompile Include="TCPClient.cpp" />
     <ClCompile Include="TCPConnector.cpp" />
     <ClCompile Include="Texture.cpp" />

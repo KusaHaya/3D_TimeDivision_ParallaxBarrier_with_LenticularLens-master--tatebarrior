@@ -65,7 +65,7 @@ namespace vmlab
 		printf("Start Capture!");
 		bool GetDevice = false;
 
-		if (avformat_open_input(&pFormatCtx, "C:/TestHD.mp4", NULL, NULL) != 0) {
+		if (avformat_open_input(&pFormatCtx, "C:/avater.mp4", NULL, NULL) != 0) {
 			//		if (avformat_open_input(&pFormatCtx, "C:/All_Movie.mp4", NULL, NULL) != 0){
 			//		if (avformat_open_input(&pFormatCtx, "C:/bigt.mp4", NULL, NULL) != 0){
 			//		if (avformat_open_input(&pFormatCtx, "C:/tombraider_origin.mp4", NULL, NULL) != 0){

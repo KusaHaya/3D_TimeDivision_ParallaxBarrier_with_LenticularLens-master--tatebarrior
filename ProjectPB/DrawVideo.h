@@ -27,6 +27,12 @@ namespace vmlab
 		bool video_flag;
 		bool printflag=true;
 		void SetSpeed(int speed);
+		GLuint getVideoTextureID() {
+			if (m_Texture) {
+				return m_Texture->GetID();
+			}
+			return 0;
+		}
 
 	private:
 		int speed = 12000;

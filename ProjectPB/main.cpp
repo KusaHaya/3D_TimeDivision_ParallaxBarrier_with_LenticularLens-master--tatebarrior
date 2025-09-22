@@ -133,6 +133,7 @@ GLuint Tex_Name;
 GLuint RenderBuffer;
 GLuint FrameBuffer;
 GLuint shaderProgram;
+GLuint videoshaderProgram;
 
 bool ReserveLR = true;
 
@@ -576,6 +577,7 @@ void init(void){
 	Frame_Buffer_Sets();
 
 	shaderProgram = LoadShaders("passthrough.vert", "interleave.frag");
+	videoshaderProgram = LoadShaders("passthrough.vert", "sbs_interleave.frag");
 
 
 	TeapotInit();//プラグラム実行中に m 1 の順で押すと表示されるteapotへのテクスチャマッピングの準備
@@ -764,6 +766,39 @@ void renderInterleavedImage() {
 	glActiveTexture(GL_TEXTURE0); // 念のためユニットを0に戻す
 }
 
+// 動画用の描画関数
+void renderInterleavedVideo() {
+
+	// 1. DrawVideoクラスから「1つ」の動画テクスチャIDを取得 (★変更点)
+	GLuint videoTexID = VideoMode->getVideoTextureID();
+	if (videoTexID == 0) return; // テクスチャがまだ準備できていなければ何もしない
+
+	// 2. 動画用のシェーダー(sbs_interleave.frag)を有効化
+	glUseProgram(videoshaderProgram);
+	glBindVertexArray(quadVAO);
+
+	// 3. 取得した「1つ」の動画テクスチャをバインド (★変更点)
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, videoTexID);
+
+	// 4. uniform変数を設定
+	float timeDivisionShift = (float)kk * 3.0f;
+	float finalShift = subpixelShift + timeDivisionShift + headTrackShift;
+
+	// ★ uniform名と設定するテクスチャユニットを変更
+	glUniform1i(glGetUniformLocation(videoshaderProgram, "sbsTexture"), 0);
+	glUniform1f(glGetUniformLocation(videoshaderProgram, "columnPitch"), columnPitch);
+	glUniform1f(glGetUniformLocation(videoshaderProgram, "screenWidth"), (float)IM_W);
+	glUniform1f(glGetUniformLocation(videoshaderProgram, "finalShift"), finalShift);
+
+	// 5. 描画
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	// 6. 後片付け
+	glBindVertexArray(0);
+	glUseProgram(0);
+	glActiveTexture(GL_TEXTURE0);
+}
 //void RGBCG_image(int RGB)
 //{
 //	set_stencil_mask(RGB);
@@ -851,7 +886,13 @@ void disp(void){
 
 		if (mrk == 1){
 			// 動画モード
+			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
 
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glViewport(0, 0, IM_W, IM_H);
+			renderInterleavedVideo(); // ★新しい動画描画関数を呼び出す
+
+			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 			// FBOへの描画
 			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
 			calculate_stencil();
