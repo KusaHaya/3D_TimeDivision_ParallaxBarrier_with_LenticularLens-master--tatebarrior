@@ -278,19 +278,24 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX) + (tmpY - caliY) / 3) * 1000 / DotSubPixel;//face moves by sub-pixel units
 
 			headTrackShift = delta;
+			//デバッグ用
+			//printf("Calibrated Z=%.3f, Current Z=%.3f -> Calculated Shift=%.2f\n", caliZ, tmpZ, headTrackShift);
+			printf("CALIB(X:%.2f, Z:%.2f), CURRENT(X:%.2f, Z:%.2f) ---> DELTA: %.2f\n",
+				caliX, caliZ, tmpX, tmpZ, delta);
 
-			//int move = 0;
-			//if (delta < 0.0)move = (int)(delta - 0.5);
-			//else move = (int)(delta + 0.5);
-			////			move = (move / 3) * 3;
-			//MiddleLine = MiddleDefault - move;
-			////			if (abs(pMiddleLine - MiddleLine) < 10){
-			////				MiddleLine = pMiddleLine;
-			////			}
-			////			pMiddleLine = MiddleLine;
+			int move = 0;
+			if (delta < 0.0)move = (int)(delta - 0.5);
+			else move = (int)(delta + 0.5);
+			//			move = (move / 3) * 3;
+			MiddleLine = MiddleDefault - move;
+			//			if (abs(pMiddleLine - MiddleLine) < 10){
+			//				MiddleLine = pMiddleLine;
+			//			}
+			//			pMiddleLine = MiddleLine;
 		}
 		else {
 			headTrackShift = 0;
+			MiddleLine = MiddleDefault;
 		}
 		buffer->consume(sizeof(float) * 6);
 		Receive(client, callback);
@@ -732,125 +737,69 @@ float columnPitch = 4.0f;     // 物理バリアのピッチ（４ピクセル=3sub×４時分割）
 float subpixelShift = 0.0f;   // キャリブレーション用の水平シフト量
 
 // RGBCG_image() の代わりとなる新しい関数
+// renderInterleavedImage() を修正
 void renderInterleavedImage() {
-	// 1. シェーダーを有効化
-	glUseProgram(shaderProgram);
-
-	// 2. 描画用の四角形(VAO)をバインド
+	glUseProgram(shaderProgram); // この新しいシェーダーを読み込むようにinit()も変更
 	glBindVertexArray(quadVAO);
 
-	// 3. 左右のテクスチャを異なるユニットにバインド
+	// --- 従来方式のパラメータを計算 ---
+	// calculate_stencil()の冒頭にあった計算をここに持ってくる
+	int totalShift = MiddleLine - 48 * haba;
+
+	// --- uniform変数をシェーダーに送る ---
+	// テクスチャの設定
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, imageL); // imageLをユニット0に
+	glBindTexture(GL_TEXTURE_2D, imageL);
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, imageR); // imageRをユニット1に
+	glBindTexture(GL_TEXTURE_2D, imageR);
+	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1);
 
-	float timeDivisionShift = (float)kk * 3.0f; // 3サブピクセルシフトを仮定
-	float finalShift = subpixelShift + timeDivisionShift + headTrackShift;
+	// 従来方式のパラメータをすべて送る
+	glUniform1f(glGetUniformLocation(shaderProgram, "haba"), (float)haba);
+	glUniform1f(glGetUniformLocation(shaderProgram, "totalShift"), (float)totalShift);
+	glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk);
+	glUniform1f(glGetUniformLocation(shaderProgram, "manualShift"), (float)SHIFT);
 
-	// 4. uniform変数に値を設定
-	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0); // ユニット0番を使う
-	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1); // ユニット1番を使う
-	glUniform1f(glGetUniformLocation(shaderProgram, "columnPitch"), columnPitch);
-	glUniform1f(glGetUniformLocation(shaderProgram, "screenWidth"), (float)IM_W);
-	//glUniform1f(glGetUniformLocation(shaderProgram, "subpixelShift"), subpixelShift);
-	glUniform1f(glGetUniformLocation(shaderProgram, "finalShift"), finalShift);
-	//glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk); // 現在のkkの値を送る
-
-	// 5. 描画命令（これ一度でインターリーブが完了する）
+	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// 6. 後片付け
-	glBindVertexArray(0);
+	// 後片付け
 	glUseProgram(0);
-	glActiveTexture(GL_TEXTURE0); // 念のためユニットを0に戻す
+	glActiveTexture(GL_TEXTURE0);
 }
 
 // 動画用の描画関数
+// renderInterleavedVideo() を修正
 void renderInterleavedVideo() {
-
-	// 1. DrawVideoクラスから「1つ」の動画テクスチャIDを取得 (★変更点)
 	GLuint videoTexID = VideoMode->getVideoTextureID();
-	if (videoTexID == 0) return; // テクスチャがまだ準備できていなければ何もしない
+	if (videoTexID == 0) return;
 
-	// 2. 動画用のシェーダー(sbs_interleave.frag)を有効化
 	glUseProgram(videoshaderProgram);
 	glBindVertexArray(quadVAO);
 
-	// 3. 取得した「1つ」の動画テクスチャをバインド (★変更点)
+	// --- 従来方式のパラメータを計算 ---
+	int totalShift = MiddleLine - 48 * haba;
+
+	// --- uniform変数をシェーダーに送る ---
+	// テクスチャの設定
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, videoTexID);
-
-	// 4. uniform変数を設定
-	float timeDivisionShift = (float)kk * 3.0f;
-	float finalShift = subpixelShift + timeDivisionShift + headTrackShift;
-
-	// ★ uniform名と設定するテクスチャユニットを変更
 	glUniform1i(glGetUniformLocation(videoshaderProgram, "sbsTexture"), 0);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "columnPitch"), columnPitch);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "screenWidth"), (float)IM_W);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "finalShift"), finalShift);
 
-	// 5. 描画
+	// 従来方式のパラメータをすべて送る
+	glUniform1f(glGetUniformLocation(videoshaderProgram, "haba"), (float)haba);
+	glUniform1f(glGetUniformLocation(videoshaderProgram, "totalShift"), (float)totalShift);
+	glUniform1i(glGetUniformLocation(videoshaderProgram, "timeStep"), kk);
+	glUniform1f(glGetUniformLocation(videoshaderProgram, "manualShift"), (float)SHIFT);
+
+	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// 6. 後片付け
-	glBindVertexArray(0);
+	// 後片付け
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
 }
-//void RGBCG_image(int RGB)
-//{
-//	set_stencil_mask(RGB);
-//
-//	if (RGB == 1) glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-//	if (RGB == 2) glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-//	if (RGB == 0) glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-//
-//	glEnable(GL_STENCIL_TEST);
-//
-//	// シェーダーの使用を開始
-//	glUseProgram(shaderProgram);
-//
-//	// 描画設定
-//	glViewport(0, 0, IM_W, IM_H);
-//
-//	// 描画用の四角形(VAO)をバインド
-//	glBindVertexArray(quadVAO);
-//
-//	// --- 右目用の描画 (ステンシル値が1の領域) ---
-//	if (eyeright == 1) {
-//		glClear(GL_DEPTH_BUFFER_BIT);
-//		glStencilFunc(GL_EQUAL, 0x1, 0x1);
-//		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-//
-//		// 0番のテクスチャユニットに右目画像をセット
-//		glActiveTexture(GL_TEXTURE0);
-//		glBindTexture(GL_TEXTURE_2D, imageR);
-//		glUniform1i(glGetUniformLocation(shaderProgram, "displayTexture"), 0);
-//
-//		glDrawArrays(GL_TRIANGLES, 0, 6);
-//	}
-//
-//	// --- 左目用の描画 (ステンシル値が0の領域) ---
-//	if (eyeleft == 1) {
-//		glClear(GL_DEPTH_BUFFER_BIT);
-//		glStencilFunc(GL_EQUAL, 0x0, 0x1);
-//		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-//
-//		// 0番のテクスチャユニットに左目画像をセット
-//		glActiveTexture(GL_TEXTURE0);
-//		glBindTexture(GL_TEXTURE_2D, imageL);
-//		glUniform1i(glGetUniformLocation(shaderProgram, "displayTexture"), 0);
-//
-//		glDrawArrays(GL_TRIANGLES, 0, 6);
-//	}
-//
-//	// 後片付け
-//	glBindVertexArray(0);
-//	glUseProgram(0);
-//	glDisable(GL_STENCIL_TEST);
-//}
 
 int SPEED = 6;
 void DTimer(int totalMilliSeconds)
@@ -886,19 +835,14 @@ void disp(void){
 
 		if (mrk == 1){
 			// 動画モード
+
+			// FBOへの描画
 			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedVideo(); // ★新しい動画描画関数を呼び出す
 
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-			// FBOへの描画
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
-			calculate_stencil();
-			RGBCG(0);
-			RGBCG(1);
-			RGBCG(2);
 			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -1292,7 +1236,7 @@ static void KeyEvent(unsigned char key, int x, int y){
 		printf("Column Pitch: %f\n", columnPitch);
 		break;
 	case '\'': // 右にシフト
-		subpixelShift += 0.1f;
+		subpixelShift += 2.1f;
 		printf("Subpixel Shift: %f\n", subpixelShift);
 		break;
 	case '/': // 左にシフト
