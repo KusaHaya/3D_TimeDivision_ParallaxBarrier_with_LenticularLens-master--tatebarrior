@@ -275,7 +275,7 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 			// haba, deltaの変化量については実験的に求めた
 			haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
 			// haba = int(haba_first * caliZ / tmpZ);
-			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX) + (tmpY - caliY) / 3) * 1000 / DotSubPixel;//face moves by sub-pixel units
+			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX) / 3) * 1000 / DotSubPixel;//face moves by sub-pixel units
 
 			headTrackShift = delta;
 			//デバッグ用
