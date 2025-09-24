@@ -805,16 +805,6 @@ int SPEED = 6;
 void DTimer(int totalMilliSeconds)
 {
 	if (VideoSwitch) VideoMode->Update(0);
-	if (arduinoSerial.is_open()) {
-		char light_command;
-		switch (kk) {
-		case 0:light_command = LIGHT_CON_0; break;
-		case 1:light_command = LIGHT_CON_1; break;
-		case 2:light_command = LIGHT_CON_2; break;
-		case 3:light_command = LIGHT_CON_3; break;
-		}
-		boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
-	}
 	glutTimerFunc(SPEED, DTimer, 0);
 }
 
@@ -914,6 +904,16 @@ void disp(void){
 		if (running){
 			kk++;
 			if (kk == 4)kk = 0;
+			if (arduinoSerial.is_open()) {
+				char light_command;
+				switch (kk) {
+				case 0:light_command = LIGHT_CON_0; break;
+				case 1:light_command = LIGHT_CON_1; break;
+				case 2:light_command = LIGHT_CON_2; break;
+				case 3:light_command = LIGHT_CON_3; break;
+				}
+				boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
+			}
 		}
 	}
 
