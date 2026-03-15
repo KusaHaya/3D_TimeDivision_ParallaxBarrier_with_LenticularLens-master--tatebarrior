@@ -859,7 +859,7 @@ void disp(void){
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedVideo(); // ★新しい動画描画関数を呼び出す
-
+			glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -895,7 +895,7 @@ void disp(void){
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBOをクリア
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
-
+			glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 

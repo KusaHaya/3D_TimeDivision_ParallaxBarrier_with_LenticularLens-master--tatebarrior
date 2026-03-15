@@ -12,12 +12,25 @@ uniform float totalShift;
 uniform int   timeStep;
 uniform float manualShift;
 
+// ★追加
+uniform float middleLinePx; // ピクセル単位（C++側で MiddleLine/3 を渡す）
+
 out vec4 color;
 
 // 従来方式の計算式をGLSLで再現したヘルパー関数
-// サブピクセル座標を受け取り、左目用ならtrueを返す
 bool shouldShowLeftEye(float W) {
-    float value = (W + (W - totalShift) / haba) + (3.0 * float(timeStep)) + manualShift;
+    // --- 中心基準・左右対称の「1subスキップ」補正 ---
+    float middleLineSub = middleLinePx * 3.0;
+    float distSub = abs(W - middleLineSub);
+    float skipCount = floor(distSub / haba);
+    float dir = (W >= middleLineSub) ? -1.0 : 1.0;
+    float skipSub = dir * skipCount;
+
+    float value = (W - (W - totalShift) / haba)
+                + (2.0 * float(timeStep))
+                + manualShift
+                + skipSub;
+
     return mod(value, 12.0) < 6.0;
 }
 
@@ -27,18 +40,16 @@ void main() {
 
     float subpixel_coord_x = gl_FragCoord.x * 3.0;
 
-    // --- R, G, Bの各成分ごとに、表示すべき視点とテクスチャ座標を決定 ---
-
-    // 【R成分の決定】
+    // 【R】
     if (shouldShowLeftEye(subpixel_coord_x + 0.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y); // テクスチャの左半分
+        vec2 leftUV = vec2(UV.x * 0.5, UV.y);
         finalColor.r = texture(sbsTexture, leftUV).r;
     } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y); // テクスチャの右半分
+        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
         finalColor.r = texture(sbsTexture, rightUV).r;
     }
 
-    // 【G成分の決定】
+    // 【G】
     if (shouldShowLeftEye(subpixel_coord_x + 1.0)) {
         vec2 leftUV = vec2(UV.x * 0.5, UV.y);
         finalColor.g = texture(sbsTexture, leftUV).g;
@@ -47,7 +58,7 @@ void main() {
         finalColor.g = texture(sbsTexture, rightUV).g;
     }
 
-    // 【B成分の決定】
+    // 【B】
     if (shouldShowLeftEye(subpixel_coord_x + 2.0)) {
         vec2 leftUV = vec2(UV.x * 0.5, UV.y);
         finalColor.b = texture(sbsTexture, leftUV).b;

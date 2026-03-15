@@ -1,23 +1,39 @@
+// advanced_parallax.frag
+
 #version 330 core
 
 in vec2 UV;
+
+// C++から受け取るuniform変数
 uniform sampler2D leftTexture;
 uniform sampler2D rightTexture;
-uniform float haba;
-uniform float totalShift;
-uniform int timeStep;
-uniform float manualShift;
+
+uniform float haba;         // 視聴距離(Z)から計算された値（サブピクセル幅）
+uniform float totalShift;   // 従来方式の基準シフト
+uniform int   timeStep;     // 時分割のステップ (kk)
+uniform float manualShift;  // 手動調整用のシフト (SHIFT)
+
+// ★追加：中心（MiddleLine）に追従する補正用
+uniform float middleLinePx; // ピクセル単位（C++側で MiddleLine/3 を渡す）
 
 out vec4 color;
 
-// 元の C++ のステンシル計算と完全に一致させる
-bool isRightEyeZone(float W) {
-    // 元の式: ((W - (W - totalShift) / haba) + 3 * kk + SHIFT)
-    // ※ 符号 (+ / -) は元の calculate_stencil 内の記述に厳密に合わせてください
-    float value = (W + (W - totalShift) / haba) + (3.0 * float(timeStep)) + manualShift;
-    
-    // 元の式: % 12 < 6 
-    // 真 (255) なら 右目、 偽 (0) なら 左目
+// 従来方式の計算式をGLSLで再現したヘルパー関数
+// サブピクセル座標を受け取り、左目用ならtrueを返す
+bool shouldShowLeftEye(float W) {
+    // --- 中心基準・左右対称の「1subスキップ」補正 ---
+    float middleLineSub = middleLinePx * 3.0;          // ピクセル→サブピクセル
+    float distSub = abs(W - middleLineSub);
+    float skipCount = floor(distSub / haba);           // habaごとに1回スキップ
+    float dir = (W >= middleLineSub) ? -1.0 : 1.0;     // 中心へ寄せる（左右対称）
+    float skipSub = dir * skipCount;                   // 1回=1sub
+
+    // ((W - (W - totalShift) / haba) + 2 * kk + SHIFT) + skipSub
+    float value = (W - (W - totalShift) / haba)
+                + (2.0 * float(timeStep))
+                + manualShift
+                + skipSub;
+
     return mod(value, 12.0) < 6.0;
 }
 
@@ -30,26 +46,14 @@ void main() {
 
     float subpixel_coord_x = gl_FragCoord.x * 3.0;
 
-    // R成分の判定
-    if (isRightEyeZone(subpixel_coord_x + 0.0)) {
-        finalColor.r = rightColor.r; // True = Right
-    } else {
-        finalColor.r = leftColor.r;  // False = Left
-    }
+    if (shouldShowLeftEye(subpixel_coord_x + 0.0)) finalColor.r = leftColor.r;
+    else                                           finalColor.r = rightColor.r;
 
-    // G成分の判定
-    if (isRightEyeZone(subpixel_coord_x + 1.0)) {
-        finalColor.g = rightColor.g;
-    } else {
-        finalColor.g = leftColor.g;
-    }
+    if (shouldShowLeftEye(subpixel_coord_x + 1.0)) finalColor.g = leftColor.g;
+    else                                           finalColor.g = rightColor.g;
 
-    // B成分の判定
-    if (isRightEyeZone(subpixel_coord_x + 2.0)) {
-        finalColor.b = rightColor.b;
-    } else {
-        finalColor.b = leftColor.b;
-    }
+    if (shouldShowLeftEye(subpixel_coord_x + 2.0)) finalColor.b = leftColor.b;
+    else                                           finalColor.b = rightColor.b;
 
     color = finalColor;
 }
