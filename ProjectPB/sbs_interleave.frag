@@ -27,7 +27,7 @@ bool shouldShowLeftEye(float W) {
     float skipSub = dir * skipCount;
 
     float value = (W - (W - totalShift) / haba)
-                + (2.0 * float(timeStep))
+                + (3.0 * float(timeStep))
                 + manualShift
                 + skipSub;
 

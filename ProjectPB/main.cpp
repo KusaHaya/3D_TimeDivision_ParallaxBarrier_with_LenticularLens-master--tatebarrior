@@ -142,6 +142,23 @@ GLuint FrameBuffer;
 GLuint shaderProgram;
 GLuint videoshaderProgram;
 
+// --- uniform location cache (image shader) ---
+GLint u_img_leftTexture = -1;
+GLint u_img_rightTexture = -1;
+GLint u_img_haba = -1;
+GLint u_img_totalShift = -1;
+GLint u_img_timeStep = -1;
+GLint u_img_manualShift = -1;
+GLint u_img_middleLinePx = -1; // ←追加したuniformがある場合
+
+// --- uniform location cache (video shader) ---
+GLint u_vid_sbsTexture = -1;
+GLint u_vid_haba = -1;
+GLint u_vid_totalShift = -1;
+GLint u_vid_timeStep = -1;
+GLint u_vid_manualShift = -1;
+GLint u_vid_middleLinePx = -1; // ←追加したuniformがある場合
+
 bool ReserveLR = true;
 
 boost::asio::io_service io;
@@ -591,6 +608,40 @@ void init(void){
 	shaderProgram = LoadShaders("passthrough.vert", "interleave.frag");
 	videoshaderProgram = LoadShaders("passthrough.vert", "sbs_interleave.frag");
 
+	// --- cache uniform locations (image) ---
+	u_img_leftTexture = glGetUniformLocation(shaderProgram, "leftTexture");
+	u_img_rightTexture = glGetUniformLocation(shaderProgram, "rightTexture");
+	u_img_haba = glGetUniformLocation(shaderProgram, "haba");
+	u_img_totalShift = glGetUniformLocation(shaderProgram, "totalShift");
+	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
+	u_img_manualShift = glGetUniformLocation(shaderProgram, "manualShift");
+	u_img_middleLinePx = glGetUniformLocation(shaderProgram, "middleLinePx");
+
+	// --- cache uniform locations (video) ---
+	u_vid_sbsTexture = glGetUniformLocation(videoshaderProgram, "sbsTexture");
+	u_vid_haba = glGetUniformLocation(videoshaderProgram, "haba");
+	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
+	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
+	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
+	u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
+
+	auto warnIfMissing = [](const char* name, GLint loc) {
+		if (loc < 0) printf("[WARN] uniform not found: %s\n", name);
+	};
+	warnIfMissing("leftTexture", u_img_leftTexture);
+	warnIfMissing("rightTexture", u_img_rightTexture);
+	warnIfMissing("haba", u_img_haba);
+	warnIfMissing("totalShift", u_img_totalShift);
+	warnIfMissing("timeStep", u_img_timeStep);
+	warnIfMissing("manualShift", u_img_manualShift);
+	warnIfMissing("middleLinePx", u_img_middleLinePx);
+
+	warnIfMissing("sbsTexture", u_vid_sbsTexture);
+	warnIfMissing("haba", u_vid_haba);
+	warnIfMissing("totalShift", u_vid_totalShift);
+	warnIfMissing("timeStep", u_vid_timeStep);
+	warnIfMissing("manualShift", u_vid_manualShift);
+	warnIfMissing("middleLinePx", u_vid_middleLinePx);
 
 	TeapotInit();//プラグラム実行中に m 1 の順で押すと表示されるteapotへのテクスチャマッピングの準備
 	setupQuad();
@@ -759,21 +810,23 @@ void renderInterleavedImage() {
 	glBindTexture(GL_TEXTURE_2D, imageL);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, imageR);
-	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0);
-	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1);
+	glUniform1i(u_img_leftTexture, 0);
+	glUniform1i(u_img_rightTexture, 1);
 
-	// 従来方式のパラメータをすべて送る
-	glUniform1f(glGetUniformLocation(shaderProgram, "haba"), (float)haba);
-	glUniform1f(glGetUniformLocation(shaderProgram, "totalShift"), (float)totalShift);
-	glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk);
-	glUniform1f(glGetUniformLocation(shaderProgram, "manualShift"), (float)SHIFT);
+	glUniform1f(u_img_haba, (float)haba);
+	glUniform1f(u_img_totalShift, (float)totalShift);
+	glUniform1i(u_img_timeStep, kk);
+	glUniform1f(u_img_manualShift, (float)SHIFT);
 
+	// 追加済みなら
+	glUniform1f(u_img_middleLinePx, (float)MiddleLine / 3.0f);
 	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	// 後片付け
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
 // 動画用の描画関数
@@ -792,20 +845,22 @@ void renderInterleavedVideo() {
 	// テクスチャの設定
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, videoTexID);
-	glUniform1i(glGetUniformLocation(videoshaderProgram, "sbsTexture"), 0);
+	glUniform1i(u_vid_sbsTexture, 0);
 
-	// 従来方式のパラメータをすべて送る
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "haba"), (float)haba);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "totalShift"), (float)totalShift);
-	glUniform1i(glGetUniformLocation(videoshaderProgram, "timeStep"), kk);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "manualShift"), (float)SHIFT);
+	glUniform1f(u_vid_haba, (float)haba);
+	glUniform1f(u_vid_totalShift, (float)totalShift);
+	glUniform1i(u_vid_timeStep, kk);
+	glUniform1f(u_vid_manualShift, (float)SHIFT);
 
+	// 追加済みなら
+	glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
 	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	// 後片付け
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
 int SPEED = 7;
@@ -859,7 +914,7 @@ void disp(void){
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedVideo(); // ★新しい動画描画関数を呼び出す
-			glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
+		//	glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -895,7 +950,7 @@ void disp(void){
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBOをクリア
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
-			glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
+		//	glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
