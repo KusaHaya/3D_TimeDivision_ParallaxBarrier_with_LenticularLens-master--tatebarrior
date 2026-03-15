@@ -13,6 +13,7 @@ uniform float totalShift;   // 従来方式の基準シフト
 uniform int   timeStep;     // 時分割のステップ (kk)
 uniform float manualShift;  // 手動調整用のシフト (SHIFT)
 
+
 // ★追加：中心（MiddleLine）に追従する補正用
 uniform float middleLinePx; // ピクセル単位（C++側で MiddleLine/3 を渡す）
 
