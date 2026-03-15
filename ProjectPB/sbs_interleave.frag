@@ -17,7 +17,7 @@ out vec4 color;
 // 従来方式の計算式をGLSLで再現したヘルパー関数
 // サブピクセル座標を受け取り、左目用ならtrueを返す
 bool shouldShowLeftEye(float W) {
-    float value = (W - (W - totalShift) / haba) + (2.0 * float(timeStep)) + manualShift;
+    float value = (W + (W - totalShift) / haba) + (3.0 * float(timeStep)) + manualShift;
     return mod(value, 12.0) < 6.0;
 }
 

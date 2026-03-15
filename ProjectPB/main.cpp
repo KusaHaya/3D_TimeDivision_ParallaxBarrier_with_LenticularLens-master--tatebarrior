@@ -36,12 +36,19 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define LIGHT_CON_1 101
 #define LIGHT_CON_2 102
 #define LIGHT_CON_3 103
+#define LIGHT_EXIT 110
+
+// 既存の定義の下に追加
+#define TIME_DIV_0 200
+#define TIME_DIV_1 201
+#define TIME_DIV_2 202
+#define TIME_DIV_3 203
 
 
 
 // 静止画と動画のパターンの間で生じる位置差の補正（テクスチャマッピングとステンシルマスク）
 // パネルごとに設定する必要あり
-int SHIFT = 1;
+int SHIFT = 3;
 
 #define SIM_W 1920 // calibration image width
 #define SIM_H 1080 // calibration image height
@@ -64,7 +71,7 @@ float eyeposy[2];
 float eyeposz[2];
 float zfar = 3000;
 float zsft = 0;
-float alphax = 0.0;
+float alphax = 1.0;
 int habat = 0;
 
 float crosstalkFactor = 0.15f; // クロストーク係数の初期値 (15%)
@@ -608,7 +615,7 @@ void calculate_stencil() {
 	int totalShift = MiddleLine - 48 * haba;
 	for (int H = 0; H < SHGT; H++) {
 		for (int W = 0; W < 3 * MIM_W; W++) {
-			if (((W - (W - totalShift) / haba) + 2 * kk + SHIFT) % 12 < 6) {//3sub;3*4 = 12:6 = 3*2 2sub; 2*4 = 8:4 = 2*2
+			if (((W - (W - totalShift) / haba) + 3 * kk + SHIFT) % 12 < 6) {//3sub;3*4 = 12:6 = 3*2 2sub; 2*4 = 8:4 = 2*2
 				color = W % 3;
 				width = W / 3;
 				sbuf2[color][H][width] = 255;
@@ -733,7 +740,7 @@ void RGBCG(int RGB)
 }
 
 // グローバル変数に追加
-float columnPitch = 4.0f;     // 物理バリアのピッチ（４ピクセル=3sub×４時分割）
+float columnPitch = 3.0f;     // 物理バリアのピッチ（４ピクセル=3sub×４時分割）
 float subpixelShift = 0.0f;   // キャリブレーション用の水平シフト量
 
 // RGBCG_image() の代わりとなる新しい関数
@@ -801,10 +808,30 @@ void renderInterleavedVideo() {
 	glActiveTexture(GL_TEXTURE0);
 }
 
-int SPEED = 6;
+int SPEED = 7;
 void DTimer(int totalMilliSeconds)
 {
 	if (VideoSwitch) VideoMode->Update(0);
+	if (arduinoSerial.is_open()) {
+		char light_command;
+		switch (kk) {
+			//case 0:light_command = LIGHT_CON_0; break;
+			//case 3:light_command = LIGHT_CON_1; break;
+			//case 2:light_command = LIGHT_CON_2; break;
+			//case 1:light_command = LIGHT_CON_3; break;
+		case 0:light_command = TIME_DIV_0; break;
+		case 3:light_command = TIME_DIV_1; break;
+		case 2:light_command = TIME_DIV_2; break;
+		case 1:light_command = TIME_DIV_3; break;
+			//case 0:light_command = TIME_DIV_3; break;
+			//case 3:light_command = TIME_DIV_0; break;
+			//case 2:light_command = TIME_DIV_1; break;
+			//case 1:light_command = TIME_DIV_2; break;
+
+		}
+		boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
+	}
+	glutPostRedisplay();
 	glutTimerFunc(SPEED, DTimer, 0);
 }
 
@@ -821,19 +848,18 @@ void disp(void){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	if (flag == 1){
 
+
 		glDisable(GL_TEXTURE_2D);
 
 		if (mrk == 1){
 			// 動画モード
 
-			// FBOへの描画
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
+		
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedVideo(); // ★新しい動画描画関数を呼び出す
 
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -864,15 +890,12 @@ void disp(void){
 		}
 		else{
 			// 画像モード
-			// FBOへの描画
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
+	
 			// 変更後：新しい関数を一度呼び出すだけ
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBOをクリア
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
 
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -901,19 +924,9 @@ void disp(void){
 			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 
-		if (running){
+		if (running  == 1){
 			kk++;
 			if (kk == 4)kk = 0;
-			if (arduinoSerial.is_open()) {
-				char light_command;
-				switch (kk) {
-				case 0:light_command = LIGHT_CON_0; break;
-				case 1:light_command = LIGHT_CON_1; break;
-				case 2:light_command = LIGHT_CON_2; break;
-				case 3:light_command = LIGHT_CON_3; break;
-				}
-				boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
-			}
 		}
 	}
 
@@ -948,6 +961,11 @@ static void KeyEvent(unsigned char key, int x, int y){
 	case 27:
 
 		while (!VideoMode->video_flag) VideoMode->dispose();
+		if (arduinoSerial.is_open()) {
+			char exit_command = LIGHT_EXIT;
+
+			boost::asio::write(arduinoSerial, boost::asio::buffer(&exit_command, 1));
+		}
 		exit(0);
 		break;
 	case 'Z':
@@ -1272,8 +1290,8 @@ int main(int argc, char ** argv){
 
 
 
-	arduinoSerial.open("COM3"); // Arduinoのポート名に合わせて変更
-	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(9600));
+	arduinoSerial.open("COM1"); // Arduinoのポート名に合わせて変更COm1はデバッグ用
+	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
 	TCPClient client("127.0.0.1", 30000);
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
@@ -1294,7 +1312,7 @@ int main(int argc, char ** argv){
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);
 	glutSpecialFunc(KeySpecialEvent);
-	glutIdleFunc(disp);
+	//glutIdleFunc(disp);
 
 	glutMainLoop();
 	client.Close();

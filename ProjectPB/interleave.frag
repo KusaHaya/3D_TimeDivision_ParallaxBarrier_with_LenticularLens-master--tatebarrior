@@ -1,27 +1,23 @@
-// advanced_parallax.frag
-
 #version 330 core
 
 in vec2 UV;
-
-// C++から受け取るuniform変数
 uniform sampler2D leftTexture;
 uniform sampler2D rightTexture;
-
-uniform float haba;         // 視聴距離(Z)から計算された値
-uniform float totalShift;   // 視点位置(X)から計算された値
-uniform int   timeStep;     // 時分割のステップ (kk)
-uniform float manualShift;  // 手動調整用のシフト (SHIFT)
+uniform float haba;
+uniform float totalShift;
+uniform int timeStep;
+uniform float manualShift;
 
 out vec4 color;
 
-// 従来方式の計算式をGLSLで再現したヘルパー関数
-// サブピクセル座標を受け取り、左目用ならtrueを返す
-bool shouldShowLeftEye(float W) {
-    // ((W - (W - totalShift) / haba) + 2 * kk + SHIFT)
-    float value = (W - (W - totalShift) / haba) + (2.0 * float(timeStep)) + manualShift;
+// 元の C++ のステンシル計算と完全に一致させる
+bool isRightEyeZone(float W) {
+    // 元の式: ((W - (W - totalShift) / haba) + 3 * kk + SHIFT)
+    // ※ 符号 (+ / -) は元の calculate_stencil 内の記述に厳密に合わせてください
+    float value = (W + (W - totalShift) / haba) + (3.0 * float(timeStep)) + manualShift;
     
-    // % 12 < 6
+    // 元の式: % 12 < 6 
+    // 真 (255) なら 右目、 偽 (0) なら 左目
     return mod(value, 12.0) < 6.0;
 }
 
@@ -32,26 +28,27 @@ void main() {
     vec4 finalColor;
     finalColor.a = 1.0;
 
-    // 物理的なサブピクセル座標の基準値
     float subpixel_coord_x = gl_FragCoord.x * 3.0;
 
-    // R, G, Bの各成分ごとに、従来方式の計算式で左右を判断
-    if (shouldShowLeftEye(subpixel_coord_x + 0.0)) {
-        finalColor.r = leftColor.r;
+    // R成分の判定
+    if (isRightEyeZone(subpixel_coord_x + 0.0)) {
+        finalColor.r = rightColor.r; // True = Right
     } else {
-        finalColor.r = rightColor.r;
+        finalColor.r = leftColor.r;  // False = Left
     }
 
-    if (shouldShowLeftEye(subpixel_coord_x + 1.0)) {
-        finalColor.g = leftColor.g;
-    } else {
+    // G成分の判定
+    if (isRightEyeZone(subpixel_coord_x + 1.0)) {
         finalColor.g = rightColor.g;
+    } else {
+        finalColor.g = leftColor.g;
     }
 
-    if (shouldShowLeftEye(subpixel_coord_x + 2.0)) {
-        finalColor.b = leftColor.b;
-    } else {
+    // B成分の判定
+    if (isRightEyeZone(subpixel_coord_x + 2.0)) {
         finalColor.b = rightColor.b;
+    } else {
+        finalColor.b = leftColor.b;
     }
 
     color = finalColor;
