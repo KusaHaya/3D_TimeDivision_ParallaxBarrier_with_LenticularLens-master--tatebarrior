@@ -6,6 +6,7 @@
 #include <boost/asio.hpp>
 #include "boost/format.hpp"
 #include <windows.h>
+#include <mmsystem.h>
 #include <stdio.h>
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -15,6 +16,8 @@
 #include "Texture.h"
 #include <vector>
 #include <sstream>
+
+#pragma comment(lib, "winmm.lib")
 
 
 FILE _iob[] = { *stdin, *stdout, *stderr };
@@ -613,6 +616,13 @@ void setupQuad() {
 
 void init(void){
 	glewInit();
+	if (WGLEW_EXT_swap_control) {
+		wglSwapIntervalEXT(1);
+		printf("V-Sync: ON\n");
+	}
+	else {
+		printf("[WARN] V-Sync extension not available.\n");
+	}
 	anmode = 0;
 
 	glGenTextures(1, &imageL);
@@ -902,31 +912,52 @@ void renderInterleavedVideo() {
 	glBindVertexArray(0);
 }
 
-int SPEED = 7;
+const double TARGET_HZ = 120.0;
+const auto TARGET_PERIOD = std::chrono::duration<double>(1.0 / TARGET_HZ);
+bool syncClockInitialized = false;
+std::chrono::steady_clock::time_point nextFrameDeadline;
+
 void DTimer(int totalMilliSeconds)
 {
-	if (VideoSwitch) VideoMode->Update(0);
-	if (arduinoSerial.is_open()) {
-		char light_command;
-		switch (kk) {
-			//case 0:light_command = LIGHT_CON_0; break;
-			//case 3:light_command = LIGHT_CON_1; break;
-			//case 2:light_command = LIGHT_CON_2; break;
-			//case 1:light_command = LIGHT_CON_3; break;
-		case 0:light_command = TIME_DIV_0; break;
-		case 3:light_command = TIME_DIV_1; break;
-		case 2:light_command = TIME_DIV_2; break;
-		case 1:light_command = TIME_DIV_3; break;
-			//case 0:light_command = TIME_DIV_3; break;
-			//case 3:light_command = TIME_DIV_0; break;
-			//case 2:light_command = TIME_DIV_1; break;
-			//case 1:light_command = TIME_DIV_2; break;
+	using steady_clock = std::chrono::steady_clock;
+	const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
+	auto now = steady_clock::now();
 
-		}
-		boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
+	if (!syncClockInitialized) {
+		nextFrameDeadline = now;
+		syncClockInitialized = true;
 	}
-	glutPostRedisplay();
-	glutTimerFunc(SPEED, DTimer, 0);
+
+	bool shouldRender = false;
+	int tickCount = 0;
+	while (now >= nextFrameDeadline) {
+		shouldRender = true;
+		tickCount++;
+		nextFrameDeadline += targetPeriod;
+	}
+
+	if (shouldRender) {
+		if (VideoSwitch) VideoMode->Update(0);
+		if (arduinoSerial.is_open()) {
+			char light_command = TIME_DIV_0;
+			switch (kk) {
+			case 0: light_command = TIME_DIV_0; break;
+			case 3: light_command = TIME_DIV_1; break;
+			case 2: light_command = TIME_DIV_2; break;
+			case 1: light_command = TIME_DIV_3; break;
+			}
+			SendArduinoCommand(light_command);
+		}
+		glutPostRedisplay();
+		if (running == 1 && tickCount > 0) {
+			kk = (kk + (tickCount % 4)) % 4;
+		}
+	}
+
+	auto remain = nextFrameDeadline - steady_clock::now();
+	auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
+	unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
+	glutTimerFunc(nextCallMs, DTimer, 0);
 }
 
 int frame = 0;
@@ -1018,10 +1049,7 @@ void disp(void){
 			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 
-		if (running  == 1){
-			kk++;
-			if (kk == 4)kk = 0;
-		}
+		// kkはDTimer()側で120Hz同期更新する
 	}
 
 	else{
@@ -1056,10 +1084,10 @@ static void KeyEvent(unsigned char key, int x, int y){
 
 		while (!VideoMode->video_flag) VideoMode->dispose();
 		if (arduinoSerial.is_open()) {
-			char exit_command = LIGHT_EXIT;
-
-			boost::asio::write(arduinoSerial, boost::asio::buffer(&exit_command, 1));
+			SendArduinoCommand(DISABLE_TIMEDIVISION);
+			SendArduinoCommand(LIGHT_EXIT);
 		}
+		timeEndPeriod(1);
 		exit(0);
 		break;
 	case 'Z':
@@ -1094,8 +1122,16 @@ static void KeyEvent(unsigned char key, int x, int y){
 		glutDisplayFunc(disp);
 		break;
 	case 't':
-		if (running) running = 0;
-		else running = 1;
+		if (running) {
+			running = 0;
+			SendArduinoCommand(DISABLE_TIMEDIVISION);
+		}
+		else {
+			running = 1;
+			kk = 0;
+			SendArduinoCommand(RESET_SYNC);
+			SendArduinoCommand(ENABLE_TIMEDIVISION);
+		}
 		glutDisplayFunc(disp);
 		break;
 	case 'o':
@@ -1426,10 +1462,16 @@ static void KeySpecialEvent(int key, int x, int y){
 
 int main(int argc, char ** argv){
 
+	MMRESULT timerResult = timeBeginPeriod(1);
+	if (timerResult != TIMERR_NOERROR) {
+		printf("[WARN] Failed to set 1ms timer resolution.\n");
+	}
 
 
 	arduinoSerial.open("COM1"); // Arduinoのポート名に合わせて変更COm1はデバッグ用
 	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
+	SendArduinoCommand(RESET_SYNC);
+	SendArduinoCommand(ENABLE_TIMEDIVISION);
 	TCPClient client("127.0.0.1", 30000);
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
@@ -1454,6 +1496,7 @@ int main(int argc, char ** argv){
 
 	glutMainLoop();
 	client.Close();
+	timeEndPeriod(1);
 
 	glDeleteTextures(1, &imageL);
 	glDeleteTextures(1, &imageR);
