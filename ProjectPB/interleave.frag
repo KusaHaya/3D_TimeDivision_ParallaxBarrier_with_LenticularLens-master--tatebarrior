@@ -12,6 +12,10 @@ uniform float haba;         // 視聴距離(Z)から計算された値（サブピクセル幅）
 uniform float totalShift;   // 従来方式の基準シフト
 uniform int   timeStep;     // 時分割のステップ (kk)
 uniform float manualShift;  // 手動調整用のシフト (SHIFT)
+uniform vec3  rgbGain;      // RGBゲイン補正
+uniform float gammaValue;   // ガンマ補正
+uniform float crosstalk;    // クロストーク補償量 (0.0-0.5程度)
+uniform int   enableColorCorrection; // 1:有効, 0:無効
 
 
 // ★追加：中心（MiddleLine）に追従する補正用
@@ -47,14 +51,46 @@ void main() {
 
     float subpixel_coord_x = gl_FragCoord.x * 3.0;
 
-    if (shouldShowLeftEye(subpixel_coord_x + 0.0)) finalColor.r = leftColor.r;
-    else                                           finalColor.r = rightColor.r;
+    float appliedCrosstalk = (enableColorCorrection != 0) ? crosstalk : 0.0;
+    vec3 appliedGain = (enableColorCorrection != 0) ? rgbGain : vec3(1.0);
+    float appliedGamma = (enableColorCorrection != 0) ? gammaValue : 1.0;
+    float leakSafe = max(1.0 - appliedCrosstalk, 0.0001);
 
-    if (shouldShowLeftEye(subpixel_coord_x + 1.0)) finalColor.g = leftColor.g;
-    else                                           finalColor.g = rightColor.g;
+    float rPrimary;
+    float rLeak;
+    if (shouldShowLeftEye(subpixel_coord_x + 0.0)) {
+        rPrimary = leftColor.r;
+        rLeak = rightColor.r;
+    } else {
+        rPrimary = rightColor.r;
+        rLeak = leftColor.r;
+    }
+    finalColor.r = clamp((rPrimary - appliedCrosstalk * rLeak) / leakSafe, 0.0, 1.0);
 
-    if (shouldShowLeftEye(subpixel_coord_x + 2.0)) finalColor.b = leftColor.b;
-    else                                           finalColor.b = rightColor.b;
+    float gPrimary;
+    float gLeak;
+    if (shouldShowLeftEye(subpixel_coord_x + 1.0)) {
+        gPrimary = leftColor.g;
+        gLeak = rightColor.g;
+    } else {
+        gPrimary = rightColor.g;
+        gLeak = leftColor.g;
+    }
+    finalColor.g = clamp((gPrimary - appliedCrosstalk * gLeak) / leakSafe, 0.0, 1.0);
+
+    float bPrimary;
+    float bLeak;
+    if (shouldShowLeftEye(subpixel_coord_x + 2.0)) {
+        bPrimary = leftColor.b;
+        bLeak = rightColor.b;
+    } else {
+        bPrimary = rightColor.b;
+        bLeak = leftColor.b;
+    }
+    finalColor.b = clamp((bPrimary - appliedCrosstalk * bLeak) / leakSafe, 0.0, 1.0);
+
+    finalColor.rgb = clamp(finalColor.rgb * appliedGain, 0.0, 1.0);
+    finalColor.rgb = pow(finalColor.rgb, vec3(1.0 / max(appliedGamma, 0.01)));
 
     color = finalColor;
 }

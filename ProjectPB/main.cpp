@@ -77,6 +77,13 @@ int habat = 0;
 float crosstalkFactor = 0.15f; // クロストーク係数の初期値 (15%)
 float headTrackShift = 0.0f; // ヘッドトラッキングによるシフト量（サブピクセル単位）
 
+// 色補正パラメータ（実機で調整しやすいようにグローバル化）
+float colorGainR = 1.00f;
+float colorGainG = 1.00f;
+float colorGainB = 1.00f;
+float colorGamma = 1.00f;
+bool colorCorrectionEnabled = true;
+
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
 
@@ -150,6 +157,10 @@ GLint u_img_totalShift = -1;
 GLint u_img_timeStep = -1;
 GLint u_img_manualShift = -1;
 GLint u_img_middleLinePx = -1; // ←追加したuniformがある場合
+GLint u_img_rgbGain = -1;
+GLint u_img_gamma = -1;
+GLint u_img_crosstalk = -1;
+GLint u_img_enableColorCorrection = -1;
 
 // --- uniform location cache (video shader) ---
 GLint u_vid_sbsTexture = -1;
@@ -158,6 +169,10 @@ GLint u_vid_totalShift = -1;
 GLint u_vid_timeStep = -1;
 GLint u_vid_manualShift = -1;
 GLint u_vid_middleLinePx = -1; // ←追加したuniformがある場合
+GLint u_vid_rgbGain = -1;
+GLint u_vid_gamma = -1;
+GLint u_vid_crosstalk = -1;
+GLint u_vid_enableColorCorrection = -1;
 
 bool ReserveLR = true;
 
@@ -616,6 +631,10 @@ void init(void){
 	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
 	u_img_manualShift = glGetUniformLocation(shaderProgram, "manualShift");
 	u_img_middleLinePx = glGetUniformLocation(shaderProgram, "middleLinePx");
+	u_img_rgbGain = glGetUniformLocation(shaderProgram, "rgbGain");
+	u_img_gamma = glGetUniformLocation(shaderProgram, "gammaValue");
+	u_img_crosstalk = glGetUniformLocation(shaderProgram, "crosstalk");
+	u_img_enableColorCorrection = glGetUniformLocation(shaderProgram, "enableColorCorrection");
 
 	// --- cache uniform locations (video) ---
 	u_vid_sbsTexture = glGetUniformLocation(videoshaderProgram, "sbsTexture");
@@ -624,6 +643,10 @@ void init(void){
 	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
 	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
 	u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
+	u_vid_rgbGain = glGetUniformLocation(videoshaderProgram, "rgbGain");
+	u_vid_gamma = glGetUniformLocation(videoshaderProgram, "gammaValue");
+	u_vid_crosstalk = glGetUniformLocation(videoshaderProgram, "crosstalk");
+	u_vid_enableColorCorrection = glGetUniformLocation(videoshaderProgram, "enableColorCorrection");
 
 	auto warnIfMissing = [](const char* name, GLint loc) {
 		if (loc < 0) printf("[WARN] uniform not found: %s\n", name);
@@ -635,6 +658,10 @@ void init(void){
 	warnIfMissing("timeStep", u_img_timeStep);
 	warnIfMissing("manualShift", u_img_manualShift);
 	warnIfMissing("middleLinePx", u_img_middleLinePx);
+	warnIfMissing("rgbGain", u_img_rgbGain);
+	warnIfMissing("gammaValue", u_img_gamma);
+	warnIfMissing("crosstalk", u_img_crosstalk);
+	warnIfMissing("enableColorCorrection", u_img_enableColorCorrection);
 
 	warnIfMissing("sbsTexture", u_vid_sbsTexture);
 	warnIfMissing("haba", u_vid_haba);
@@ -642,6 +669,10 @@ void init(void){
 	warnIfMissing("timeStep", u_vid_timeStep);
 	warnIfMissing("manualShift", u_vid_manualShift);
 	warnIfMissing("middleLinePx", u_vid_middleLinePx);
+	warnIfMissing("rgbGain", u_vid_rgbGain);
+	warnIfMissing("gammaValue", u_vid_gamma);
+	warnIfMissing("crosstalk", u_vid_crosstalk);
+	warnIfMissing("enableColorCorrection", u_vid_enableColorCorrection);
 
 	TeapotInit();//プラグラム実行中に m 1 の順で押すと表示されるteapotへのテクスチャマッピングの準備
 	setupQuad();
@@ -820,6 +851,10 @@ void renderInterleavedImage() {
 
 	// 追加済みなら
 	glUniform1f(u_img_middleLinePx, (float)MiddleLine / 3.0f);
+	glUniform3f(u_img_rgbGain, colorGainR, colorGainG, colorGainB);
+	glUniform1f(u_img_gamma, colorGamma);
+	glUniform1f(u_img_crosstalk, crosstalkFactor);
+	glUniform1i(u_img_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
 	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -854,6 +889,10 @@ void renderInterleavedVideo() {
 
 	// 追加済みなら
 	glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
+	glUniform3f(u_vid_rgbGain, colorGainR, colorGainG, colorGainB);
+	glUniform1f(u_vid_gamma, colorGamma);
+	glUniform1f(u_vid_crosstalk, crosstalkFactor);
+	glUniform1i(u_vid_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
 	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
@@ -1315,6 +1354,50 @@ static void KeyEvent(unsigned char key, int x, int y){
 	case '/': // 左にシフト
 		subpixelShift -= 0.1f;
 		printf("Subpixel Shift: %f\n", subpixelShift);
+		break;
+	case 'u': // Rゲインを増やす
+		colorGainR += 0.01f;
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'U': // Rゲインを減らす
+		colorGainR = max(0.50f, colorGainR - 0.01f);
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'i': // Gゲインを増やす
+		colorGainG += 0.01f;
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'I': // Gゲインを減らす
+		colorGainG = max(0.50f, colorGainG - 0.01f);
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'j': // Bゲインを増やす
+		colorGainB += 0.01f;
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'J': // Bゲインを減らす
+		colorGainB = max(0.50f, colorGainB - 0.01f);
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'g': // ガンマを上げる
+		colorGamma += 0.02f;
+		printf("Gamma: %.3f\n", colorGamma);
+		break;
+	case 'G': // ガンマを下げる
+		colorGamma = max(0.60f, colorGamma - 0.02f);
+		printf("Gamma: %.3f\n", colorGamma);
+		break;
+	case 'y': // クロストーク補償量を増やす
+		crosstalkFactor = min(0.50f, crosstalkFactor + 0.01f);
+		printf("Crosstalk Compensation: %.3f\n", crosstalkFactor);
+		break;
+	case 'Y': // クロストーク補償量を減らす
+		crosstalkFactor = max(0.00f, crosstalkFactor - 0.01f);
+		printf("Crosstalk Compensation: %.3f\n", crosstalkFactor);
+		break;
+	case 'n': // 色補正ON/OFF
+		colorCorrectionEnabled = !colorCorrectionEnabled;
+		printf("Color Correction: %s\n", colorCorrectionEnabled ? "ON" : "OFF");
 		break;
 
 	}

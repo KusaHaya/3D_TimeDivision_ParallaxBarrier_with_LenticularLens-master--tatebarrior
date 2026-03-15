@@ -4,22 +4,25 @@
 
 in vec2 UV;
 
-// C++から受け取るuniform変数
-uniform sampler2D sbsTexture; // サイドバイサイド動画テクスチャ
+// C++??????uniform??
+uniform sampler2D sbsTexture; // ???????????????
 
 uniform float haba;
 uniform float totalShift;
 uniform int   timeStep;
 uniform float manualShift;
+uniform vec3  rgbGain;
+uniform float gammaValue;
+uniform float crosstalk;
+uniform int   enableColorCorrection;
 
-// ★追加
-uniform float middleLinePx; // ピクセル単位（C++側で MiddleLine/3 を渡す）
+// ???MiddleLine????
+uniform float middleLinePx; // C++?? MiddleLine/3 ???
 
 out vec4 color;
 
-// 従来方式の計算式をGLSLで再現したヘルパー関数
+// ?????????GLSL???
 bool shouldShowLeftEye(float W) {
-    // --- 中心基準・左右対称の「1subスキップ」補正 ---
     float middleLineSub = middleLinePx * 3.0;
     float distSub = abs(W - middleLineSub);
     float skipCount = floor(distSub / haba);
@@ -39,33 +42,51 @@ void main() {
     finalColor.a = 1.0;
 
     float subpixel_coord_x = gl_FragCoord.x * 3.0;
+    float appliedCrosstalk = (enableColorCorrection != 0) ? crosstalk : 0.0;
+    vec3 appliedGain = (enableColorCorrection != 0) ? rgbGain : vec3(1.0);
+    float appliedGamma = (enableColorCorrection != 0) ? gammaValue : 1.0;
+    float leakSafe = max(1.0 - appliedCrosstalk, 0.0001);
 
-    // 【R】
+    vec2 leftUV = vec2(UV.x * 0.5, UV.y);
+    vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
+    vec3 leftColor = texture(sbsTexture, leftUV).rgb;
+    vec3 rightColor = texture(sbsTexture, rightUV).rgb;
+
+    float rPrimary;
+    float rLeak;
     if (shouldShowLeftEye(subpixel_coord_x + 0.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y);
-        finalColor.r = texture(sbsTexture, leftUV).r;
+        rPrimary = leftColor.r;
+        rLeak = rightColor.r;
     } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
-        finalColor.r = texture(sbsTexture, rightUV).r;
+        rPrimary = rightColor.r;
+        rLeak = leftColor.r;
     }
+    finalColor.r = clamp((rPrimary - appliedCrosstalk * rLeak) / leakSafe, 0.0, 1.0);
 
-    // 【G】
+    float gPrimary;
+    float gLeak;
     if (shouldShowLeftEye(subpixel_coord_x + 1.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y);
-        finalColor.g = texture(sbsTexture, leftUV).g;
+        gPrimary = leftColor.g;
+        gLeak = rightColor.g;
     } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
-        finalColor.g = texture(sbsTexture, rightUV).g;
+        gPrimary = rightColor.g;
+        gLeak = leftColor.g;
     }
+    finalColor.g = clamp((gPrimary - appliedCrosstalk * gLeak) / leakSafe, 0.0, 1.0);
 
-    // 【B】
+    float bPrimary;
+    float bLeak;
     if (shouldShowLeftEye(subpixel_coord_x + 2.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y);
-        finalColor.b = texture(sbsTexture, leftUV).b;
+        bPrimary = leftColor.b;
+        bLeak = rightColor.b;
     } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
-        finalColor.b = texture(sbsTexture, rightUV).b;
+        bPrimary = rightColor.b;
+        bLeak = leftColor.b;
     }
+    finalColor.b = clamp((bPrimary - appliedCrosstalk * bLeak) / leakSafe, 0.0, 1.0);
+
+    finalColor.rgb = clamp(finalColor.rgb * appliedGain, 0.0, 1.0);
+    finalColor.rgb = pow(finalColor.rgb, vec3(1.0 / max(appliedGamma, 0.01)));
 
     color = finalColor;
 }
