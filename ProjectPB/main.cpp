@@ -9,7 +9,7 @@
 #include <mmsystem.h>
 #include <stdio.h>
 #include <GL/glew.h>
-#include <GL/glut.h>
+#include <GLFW/glfw3.h>
 #include <math.h>
 #include <thread>
 #include "DrawVideo.h"
@@ -277,7 +277,7 @@ void List()
 		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 		glEnable(GL_TEXTURE_2D);
 
-		glutSolidTeapot(100);
+		// glutSolidTeapot(100); // GLFW移行のため一時的に無効化
 
 		//		glDisable(GL_TEXTURE_2D);
 		glDisable(GL_LIGHT0);
@@ -348,29 +348,55 @@ bool checkFramebufferStatus()
 {
 	// check FBO status
 	GLenum status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
-	switch (status)
-	{
-	case GL_FRAMEBUFFER_COMPLETE_EXT:
-		//std::cout << "Framebuffer complete.\n";
-		return true;
 
-	case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Attachment is NOT complete.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: No image is attached to FBO.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Attached images have different dimensions.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Color attached images have different internal formats.\n";
-		return false;
-	case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Draw buffer.\n";
+// GLFW用キーボードコールバック
+void KeyEvent_GLFW(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+		switch (key) {
+		case GLFW_KEY_ESCAPE:
+			while (!VideoMode->video_flag) VideoMode->dispose();
+			if (arduinoSerial.is_open()) {
+				SendArduinoCommand(DISABLE_TIMEDIVISION);
+				SendArduinoCommand(LIGHT_EXIT);
+			}
+			timeEndPeriod(1);
+			glfwSetWindowShouldClose(window, GLFW_TRUE);
+			break;
+		case GLFW_KEY_Z:
+			anmode = 0; flag = 0; break;
+		case GLFW_KEY_A:
+			anmode = 1; flag = 0; break;
+		case GLFW_KEY_Q:
+			anmode = 2; flag = 0; break;
+		case GLFW_KEY_W:
+			kk = 1; break;
+		case GLFW_KEY_E:
+			kk = 2; break;
+		case GLFW_KEY_R:
+			kk = 3; break;
+		case GLFW_KEY_T:
+			if (running) { running = 0; SendArduinoCommand(DISABLE_TIMEDIVISION); }
+			else { running = 1; kk = 0; SendArduinoCommand(RESET_SYNC); SendArduinoCommand(ENABLE_TIMEDIVISION); }
+			break;
+		case GLFW_KEY_O:
+			SHIFT += 1; break;
+		case GLFW_KEY_H:
+			if (ht == 0){ Sleep(100); cali_flag = 1; }
+			else{ Sleep(100); ht = 0; printf("head-tracking: OFF\n"); haba = haba_first; }
+			MiddleLine = MiddleDefault; break;
+		case GLFW_KEY_LEFT:
+			theta = (int)(theta + 1) % 360; break;
+		case GLFW_KEY_RIGHT:
+			theta = (int)(theta - 1 + 360) % 360; break;
+		// ...他のキーも同様に追加...
+		}
+	}
+	if (action == GLFW_RELEASE) {
+		if (key == GLFW_KEY_S) {
+			VideoMode->SetSpeed(9000);
+		}
+	}
+}
 		return false;
 
 	case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT:
@@ -948,7 +974,7 @@ void DTimer(int totalMilliSeconds)
 			}
 			SendArduinoCommand(light_command);
 		}
-		glutPostRedisplay();
+		// glutPostRedisplay(); // GLFWでは不要
 		if (running == 1 && tickCount > 0) {
 			kk = (kk + (tickCount % 4)) % 4;
 		}
@@ -957,7 +983,7 @@ void DTimer(int totalMilliSeconds)
 	auto remain = nextFrameDeadline - steady_clock::now();
 	auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
 	unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
-	glutTimerFunc(nextCallMs, DTimer, 0);
+	// glutTimerFunc(nextCallMs, DTimer, 0); // GLFWでは不要
 }
 
 int frame = 0;
@@ -1075,7 +1101,7 @@ void disp(void){
 		qq = 0;
 		flag = 1;
 	}
-	glutSwapBuffers();
+	// GLFWではメインループ内でglfwSwapBuffers(window)を呼ぶため不要
 }
 
 static void KeyEvent(unsigned char key, int x, int y){
@@ -1093,12 +1119,12 @@ static void KeyEvent(unsigned char key, int x, int y){
 	case 'Z':
 		anmode = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		// glutDisplayFunc(disp); // GLFWでは不要
 		break;
 	case 'A':
 		anmode = 1;
 		flag = 0;
-		glutDisplayFunc(disp);
+		// glutDisplayFunc(disp); // GLFWでは不要
 		break;
 	case 'Q':
 		anmode = 2;
@@ -1440,22 +1466,28 @@ static void KeyEvent(unsigned char key, int x, int y){
 }
 static void KeyUp(unsigned
 	char key, int x, int y){
-	switch (key){
-	case 's':
-		VideoMode->SetSpeed(9000);
-		break;
+
+// GLFW用キーボードコールバック
+void KeyUp_GLFW(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (action == GLFW_RELEASE) {
+		if (key == GLFW_KEY_S) {
+			VideoMode->SetSpeed(9000);
+		}
 	}
 }
 static void KeySpecialEvent(int key, int x, int y){
-	if (key == GLUT_KEY_LEFT){
-		theta = (int)(theta + 1) % 360;
-		glutDisplayFunc(disp);
-	}
-	if (key == GLUT_KEY_RIGHT){
-		theta = (int)(theta - 1 + 360) % 360;
-		glutDisplayFunc(disp);
-	}
 
+// GLFW用キーボードコールバック
+void KeySpecialEvent_GLFW(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (action == GLFW_PRESS) {
+		if (key == GLFW_KEY_LEFT){
+			theta = (int)(theta + 1) % 360;
+		}
+		if (key == GLFW_KEY_RIGHT){
+			theta = (int)(theta - 1 + 360) % 360;
+		}
+	}
+}
 }
 
 
@@ -1473,28 +1505,41 @@ int main(int argc, char ** argv){
 	SendArduinoCommand(RESET_SYNC);
 	SendArduinoCommand(ENABLE_TIMEDIVISION);
 	TCPClient client("127.0.0.1", 30000);
-	glutInit(&argc, argv);
-	glutInitWindowPosition(0, 0);
-	glutInitWindowSize(IM_W, IM_H);
+	if (!glfwInit()) {
+		fprintf(stderr, "Failed to initialize GLFW\n");
+		return -1;
+	}
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_ANY_PROFILE);
+	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_STENCIL | GLUT_STEREO);
-	glutCreateWindow("Test");
+	GLFWwindow* window = glfwCreateWindow(IM_W, IM_H, "Test", NULL, NULL);
+	if (!window) {
+		fprintf(stderr, "Failed to create GLFW window\n");
+		glfwTerminate();
+		return -1;
+	}
+	glfwMakeContextCurrent(window);
 
 	VideoMode = std::unique_ptr<vmlab::DrawVideo>(new vmlab::DrawVideo);
 	VideoSwitch = false;
-	glutTimerFunc(0, DTimer, 0);
-
 	init();
 	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	Receive(client, [](boost::system::error_code e, size_t){ std::cout << e.message() << std::endl; });
 	List();
-	glutDisplayFunc(disp);
-	glutKeyboardFunc(KeyEvent);
-	glutKeyboardUpFunc(KeyUp);
-	glutSpecialFunc(KeySpecialEvent);
-	//glutIdleFunc(disp);
 
-	glutMainLoop();
+	glfwSetKeyCallback(window, KeyEvent_GLFW);
+	// 必要に応じて他のコールバックも登録可能
+
+	while (!glfwWindowShouldClose(window)) {
+		DTimer_GLFW();
+		disp();
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+	glfwDestroyWindow(window);
+	glfwTerminate();
 	client.Close();
 	timeEndPeriod(1);
 
