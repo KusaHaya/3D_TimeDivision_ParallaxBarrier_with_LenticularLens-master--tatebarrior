@@ -179,8 +179,22 @@ GLint u_vid_enableColorCorrection = -1;
 
 bool ReserveLR = true;
 
+
 boost::asio::io_service io;
 boost::asio::serial_port arduinoSerial(io);
+
+// Arduinoにコマンドを送信する関数
+void SendArduinoCommand(char command) {
+	if (arduinoSerial.is_open()) {
+		boost::system::error_code ec;
+		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&command, 1), ec);
+		if (ec || bytes_written != 1) {
+			printf("[ERROR] Arduinoへの送信失敗: %s\n", ec.message().c_str());
+		}
+	} else {
+		printf("[WARN] Arduinoシリアルポートが開いていません\n");
+	}
+}
 
 // teapotテクスチャマッピング
 static GLubyte Teapotimage[TEAPOT_HEIGHT][TEAPOT_WIDTH][4];
