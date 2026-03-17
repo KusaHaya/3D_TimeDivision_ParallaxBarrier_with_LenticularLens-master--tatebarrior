@@ -1,3 +1,9 @@
+// Arduinoにコマンドを送信する関数
+void SendArduinoCommand(char command) {
+	if (arduinoSerial.is_open()) {
+		boost::asio::write(arduinoSerial, boost::asio::buffer(&command, 1));
+	}
+}
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <iostream>
