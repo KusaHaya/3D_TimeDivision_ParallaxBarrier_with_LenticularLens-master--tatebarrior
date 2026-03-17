@@ -634,13 +634,6 @@ void setupQuad() {
 
 void init(void){
 	glewInit();
-	if (WGLEW_EXT_swap_control) {
-		wglSwapIntervalEXT(1);
-		printf("V-Sync: ON\n");
-	}
-	else {
-		printf("[WARN] V-Sync extension not available.\n");
-	}
 	anmode = 0;
 
 	glGenTextures(1, &imageL);
