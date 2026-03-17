@@ -35,13 +35,16 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define WID 528
 #define HGT 297
 
-#define LIGHT_CON_0 100
-#define LIGHT_CON_1 101
-#define LIGHT_CON_2 102
-#define LIGHT_CON_3 103
+
+#define REFRESH_RATE 120
+
+// PC->Arduino commands
+#define ENABLE_TIMEDIVISION 12
+#define DISABLE_TIMEDIVISION 13
+#define RESET_SYNC 20
+
 #define LIGHT_EXIT 110
 
-// 既存の定義の下に追加
 #define TIME_DIV_0 200
 #define TIME_DIV_1 201
 #define TIME_DIV_2 202
@@ -183,11 +186,12 @@ bool ReserveLR = true;
 boost::asio::io_service io;
 boost::asio::serial_port arduinoSerial(io);
 
-// Arduinoにコマンドを送信する関数
-void SendArduinoCommand(char command) {
+// Arduinoにコマンド番号（int値）を1バイトで送信する関数
+void SendArduinoCommand(int command) {
 	if (arduinoSerial.is_open()) {
+		unsigned char cmd = static_cast<unsigned char>(command);
 		boost::system::error_code ec;
-		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&command, 1), ec);
+		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&cmd, 1), ec);
 		if (ec || bytes_written != 1) {
 			printf("[ERROR] Arduinoへの送信失敗: %s\n", ec.message().c_str());
 		}

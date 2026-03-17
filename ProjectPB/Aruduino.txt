@@ -1,0 +1,261 @@
+// 利用するArduinoのプログラム
+#define REFRESH_RATE 120
+
+// PC->Arduino commands
+#define ENABLE_TIMEDIVISION 12
+#define DISABLE_TIMEDIVISION 13
+#define RESET_SYNC 20
+
+#define LIGHT_EXIT 110
+
+#define TIME_DIV_0 200
+#define TIME_DIV_1 201
+#define TIME_DIV_2 202
+#define TIME_DIV_3 203
+
+// --- Pins (bottom[0..3], top[4..7]) ---
+const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
+inline int PIN_BOTTOM(uint8_t kk) { return OUTPUT_PINS[kk]; }
+inline int PIN_TOP(uint8_t kk)    { return OUTPUT_PINS[kk + 4]; }
+
+// --- Timing (us) ---
+const uint32_t offset_us    = 2500;
+const uint32_t pre_pulse_us = 500;
+
+const uint32_t frame_period_us = 1000000UL / REFRESH_RATE;
+
+// 元コードの -6000 を踏襲。ただしフレームに収まるよう固定分を引いた上で点灯保持を決める
+const uint32_t guard_us = 6000;
+const uint32_t used_fixed_us = pre_pulse_us + offset_us + offset_us;
+const uint32_t on_window_us = (frame_period_us > (guard_us + used_fixed_us))
+  ? (frame_period_us - guard_us - used_fixed_us)
+  : (frame_period_us / 4);
+
+// --- Watchdog (no-comm fallback) ---
+// PCが落ちた/固まった/USBが抜けた時に、通常点灯へ戻す
+const uint32_t COMM_TIMEOUT_MS = 2500; // まずは1.5秒推奨（必要なら調整）
+
+// --- Mode ---
+enum Mode : uint8_t { STANDBY, TIMEDIV };
+volatile Mode mode = STANDBY;
+
+// --- Phase control ---
+volatile uint8_t phase = 0;            // 0..3
+volatile uint8_t pending_phase = 255;  // 255=none（フレーム境界で適用）
+
+int PIN_PAST = -1;
+
+// --- Waveform state machine ---
+enum State : uint8_t {
+  IDLE,
+  PRE_PAST_HIGH,
+  PRE_PAST_WAIT,
+  PRE_PAST_LOW,
+  WAIT_OFFSET_1,
+  TOP_HIGH,
+  WAIT_OFFSET_2,
+  BOTTOM_HIGH,
+  ON_HOLD,
+  TOP_LOW,
+  BOTTOM_LOW,
+  WAIT_REST
+};
+
+State st = IDLE;
+uint32_t st_t0 = 0;
+int curTop = -1;
+int curBottom = -1;
+
+// --- comm timestamp ---
+uint32_t lastCommMs = 0;
+
+// ---- Helpers ----
+void allHigh() {
+  for (int i = 0; i < 8; i++) digitalWrite(OUTPUT_PINS[i], HIGH);
+}
+void allLow() {
+  for (int i = 0; i < 8; i++) digitalWrite(OUTPUT_PINS[i], LOW);
+}
+
+void timedivResetInternal() {
+  phase = 0;
+  pending_phase = 255;
+  PIN_PAST = -1;
+  st = IDLE;
+}
+
+void enterStandby() {
+  mode = STANDBY;
+  allHigh(); // ★要件：終了時は通常点灯
+}
+
+void enterTimediv() {
+  mode = TIMEDIV;
+  timedivResetInternal();
+  allLow(); // 波形開始前に一旦消灯して明確に
+}
+
+void applyPendingIfAny() {
+  if (pending_phase != 255) {
+    phase = pending_phase & 0x03;
+    pending_phase = 255;
+  }
+}
+
+void serviceTimediv(uint32_t nowUs) {
+  if (mode != TIMEDIV) return;
+
+  switch (st) {
+    case IDLE: {
+      applyPendingIfAny();
+
+      curTop = PIN_TOP(phase);
+      curBottom = PIN_BOTTOM(phase);
+
+      digitalWrite(curTop, LOW);
+      digitalWrite(curBottom, LOW);
+
+      if (PIN_PAST >= 0) st = PRE_PAST_HIGH;
+      else st = WAIT_OFFSET_1;
+
+      st_t0 = nowUs;
+      break;
+    }
+
+    case PRE_PAST_HIGH:
+      digitalWrite(PIN_PAST, HIGH);
+      st = PRE_PAST_WAIT;
+      st_t0 = nowUs;
+      break;
+
+    case PRE_PAST_WAIT:
+      if ((uint32_t)(nowUs - st_t0) >= pre_pulse_us) {
+        st = PRE_PAST_LOW;
+        st_t0 = nowUs;
+      }
+      break;
+
+    case PRE_PAST_LOW:
+      digitalWrite(PIN_PAST, LOW);
+      st = WAIT_OFFSET_1;
+      st_t0 = nowUs;
+      break;
+
+    case WAIT_OFFSET_1:
+      if ((uint32_t)(nowUs - st_t0) >= offset_us) {
+        st = TOP_HIGH;
+        st_t0 = nowUs;
+      }
+      break;
+
+    case TOP_HIGH:
+      digitalWrite(curTop, HIGH);
+      st = WAIT_OFFSET_2;
+      st_t0 = nowUs;
+      break;
+
+    case WAIT_OFFSET_2:
+      if ((uint32_t)(nowUs - st_t0) >= offset_us) {
+        st = BOTTOM_HIGH;
+        st_t0 = nowUs;
+      }
+      break;
+
+    case BOTTOM_HIGH:
+      digitalWrite(curBottom, HIGH);
+      st = ON_HOLD;
+      st_t0 = nowUs;
+      break;
+
+    case ON_HOLD:
+      if ((uint32_t)(nowUs - st_t0) >= on_window_us) {
+        st = TOP_LOW;
+        st_t0 = nowUs;
+      }
+      break;
+
+    case TOP_LOW:
+      digitalWrite(curTop, LOW);
+      st = BOTTOM_LOW;
+      st_t0 = nowUs;
+      break;
+
+    case BOTTOM_LOW:
+      // 必須仕様：PIN_PAST=bottom にしてから bottom を落とす
+      PIN_PAST = curBottom;
+      digitalWrite(curBottom, LOW);
+
+      // 1フレームごとに位相を進める
+      phase = (phase + 1) & 0x03;
+
+      st = WAIT_REST;
+      st_t0 = nowUs;
+      break;
+
+    case WAIT_REST: {
+      // 簡易rest（フレーム周期の大枠を維持）
+      const uint32_t used_min = pre_pulse_us + offset_us + offset_us + on_window_us;
+      const uint32_t rest = (frame_period_us > used_min) ? (frame_period_us - used_min) : 0;
+
+      if ((uint32_t)(nowUs - st_t0) >= rest) {
+        st = IDLE;
+      }
+      break;
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  for (int i = 0; i < 8; i++) pinMode(OUTPUT_PINS[i], OUTPUT);
+
+  lastCommMs = millis();
+  enterStandby(); // ★起動時も通常点灯でOK（要件に合わせる）
+}
+
+void loop() {
+// --- Serial handling ---
+while (Serial.available() > 0) {
+  uint8_t cmd = (uint8_t)Serial.read();
+  lastCommMs = millis(); // ★受信したら更新
+
+  switch (cmd) {
+    case ENABLE_TIMEDIVISION:
+      enterTimediv();
+      break;
+
+    case DISABLE_TIMEDIVISION:
+    case LIGHT_EXIT:
+      enterStandby();
+      break;
+
+    case RESET_SYNC:
+      // ★STANDBY中に来ても「次にTIMEDIVに入った最初のフレームで0へ」
+      pending_phase = 0;
+      break;
+
+    case TIME_DIV_0:
+    case TIME_DIV_1:
+    case TIME_DIV_2:
+    case TIME_DIV_3:
+      // ★modeに関係なく「次フレーム境界で適用」予約だけする
+      pending_phase = (cmd - TIME_DIV_0) & 0x03;
+      break;
+
+    default:
+      break;
+  }
+}
+
+  // --- Watchdog fallback ---
+  if (mode == TIMEDIV) {
+    uint32_t nowMs = millis();
+    if ((uint32_t)(nowMs - lastCommMs) >= COMM_TIMEOUT_MS) {
+      // PCが死んだ/ケーブル抜け等 → 通常点灯へ戻す
+      enterStandby();
+    }
+  }
+
+  // --- Auto-run waveform ---
+  serviceTimediv(micros());
+}
