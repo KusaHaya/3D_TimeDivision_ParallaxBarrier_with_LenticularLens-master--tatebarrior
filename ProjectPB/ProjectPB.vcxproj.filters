@@ -45,6 +45,12 @@
     <None Include="simpleTexture.frag">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="interleave.frag">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="sbs_interleave.frag">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="TCPClient.h">

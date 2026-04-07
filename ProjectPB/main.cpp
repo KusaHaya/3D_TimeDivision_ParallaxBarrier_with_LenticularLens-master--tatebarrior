@@ -6,6 +6,7 @@
 #include <boost/asio.hpp>
 #include "boost/format.hpp"
 #include <windows.h>
+#include <mmsystem.h>
 #include <stdio.h>
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -15,6 +16,8 @@
 #include "Texture.h"
 #include <vector>
 #include <sstream>
+
+#pragma comment(lib, "winmm.lib")
 
 
 FILE _iob[] = { *stdin, *stdout, *stderr };
@@ -32,16 +35,26 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define WID 528
 #define HGT 297
 
-#define LIGHT_CON_0 100
-#define LIGHT_CON_1 101
-#define LIGHT_CON_2 102
-#define LIGHT_CON_3 103
+
+#define REFRESH_RATE 120
+
+// PC->Arduino commands
+#define ENABLE_TIMEDIVISION 12
+#define DISABLE_TIMEDIVISION 13
+#define RESET_SYNC 20
+
+#define LIGHT_EXIT 110
+
+#define TIME_DIV_0 200
+#define TIME_DIV_1 201
+#define TIME_DIV_2 202
+#define TIME_DIV_3 203
 
 
 
 // 静止画と動画のパターンの間で生じる位置差の補正（テクスチャマッピングとステンシルマスク）
 // パネルごとに設定する必要あり
-int SHIFT = 1;
+int SHIFT = 3;
 
 #define SIM_W 1920 // calibration image width
 #define SIM_H 1080 // calibration image height
@@ -64,11 +77,18 @@ float eyeposy[2];
 float eyeposz[2];
 float zfar = 3000;
 float zsft = 0;
-float alphax = 0.0;
+float alphax = 1.0;
 int habat = 0;
 
 float crosstalkFactor = 0.15f; // クロストーク係数の初期値 (15%)
 float headTrackShift = 0.0f; // ヘッドトラッキングによるシフト量（サブピクセル単位）
+
+// 色補正パラメータ（実機で調整しやすいようにグローバル化）
+float colorGainR = 1.00f;
+float colorGainG = 1.00f;
+float colorGainB = 1.00f;
+float colorGamma = 1.00f;
+bool colorCorrectionEnabled = true;
 
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
@@ -135,10 +155,50 @@ GLuint FrameBuffer;
 GLuint shaderProgram;
 GLuint videoshaderProgram;
 
+// --- uniform location cache (image shader) ---
+GLint u_img_leftTexture = -1;
+GLint u_img_rightTexture = -1;
+GLint u_img_haba = -1;
+GLint u_img_totalShift = -1;
+GLint u_img_timeStep = -1;
+GLint u_img_manualShift = -1;
+GLint u_img_middleLinePx = -1; // ←追加したuniformがある場合
+GLint u_img_rgbGain = -1;
+GLint u_img_gamma = -1;
+GLint u_img_crosstalk = -1;
+GLint u_img_enableColorCorrection = -1;
+
+// --- uniform location cache (video shader) ---
+GLint u_vid_sbsTexture = -1;
+GLint u_vid_haba = -1;
+GLint u_vid_totalShift = -1;
+GLint u_vid_timeStep = -1;
+GLint u_vid_manualShift = -1;
+GLint u_vid_middleLinePx = -1; // ←追加したuniformがある場合
+GLint u_vid_rgbGain = -1;
+GLint u_vid_gamma = -1;
+GLint u_vid_crosstalk = -1;
+GLint u_vid_enableColorCorrection = -1;
+
 bool ReserveLR = true;
+
 
 boost::asio::io_service io;
 boost::asio::serial_port arduinoSerial(io);
+
+// Arduinoにコマンド番号（int値）を1バイトで送信する関数
+void SendArduinoCommand(int command) {
+	if (arduinoSerial.is_open()) {
+		unsigned char cmd = static_cast<unsigned char>(command);
+		boost::system::error_code ec;
+		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&cmd, 1), ec);
+		if (ec || bytes_written != 1) {
+			printf("[ERROR] Arduinoへの送信失敗: %s\n", ec.message().c_str());
+		}
+	} else {
+		printf("[WARN] Arduinoシリアルポートが開いていません\n");
+	}
+}
 
 // teapotテクスチャマッピング
 static GLubyte Teapotimage[TEAPOT_HEIGHT][TEAPOT_WIDTH][4];
@@ -584,6 +644,56 @@ void init(void){
 	shaderProgram = LoadShaders("passthrough.vert", "interleave.frag");
 	videoshaderProgram = LoadShaders("passthrough.vert", "sbs_interleave.frag");
 
+	// --- cache uniform locations (image) ---
+	u_img_leftTexture = glGetUniformLocation(shaderProgram, "leftTexture");
+	u_img_rightTexture = glGetUniformLocation(shaderProgram, "rightTexture");
+	u_img_haba = glGetUniformLocation(shaderProgram, "haba");
+	u_img_totalShift = glGetUniformLocation(shaderProgram, "totalShift");
+	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
+	u_img_manualShift = glGetUniformLocation(shaderProgram, "manualShift");
+	u_img_middleLinePx = glGetUniformLocation(shaderProgram, "middleLinePx");
+	u_img_rgbGain = glGetUniformLocation(shaderProgram, "rgbGain");
+	u_img_gamma = glGetUniformLocation(shaderProgram, "gammaValue");
+	u_img_crosstalk = glGetUniformLocation(shaderProgram, "crosstalk");
+	u_img_enableColorCorrection = glGetUniformLocation(shaderProgram, "enableColorCorrection");
+
+	// --- cache uniform locations (video) ---
+	u_vid_sbsTexture = glGetUniformLocation(videoshaderProgram, "sbsTexture");
+	u_vid_haba = glGetUniformLocation(videoshaderProgram, "haba");
+	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
+	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
+	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
+	u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
+	u_vid_rgbGain = glGetUniformLocation(videoshaderProgram, "rgbGain");
+	u_vid_gamma = glGetUniformLocation(videoshaderProgram, "gammaValue");
+	u_vid_crosstalk = glGetUniformLocation(videoshaderProgram, "crosstalk");
+	u_vid_enableColorCorrection = glGetUniformLocation(videoshaderProgram, "enableColorCorrection");
+
+	auto warnIfMissing = [](const char* name, GLint loc) {
+		if (loc < 0) printf("[WARN] uniform not found: %s\n", name);
+	};
+	warnIfMissing("leftTexture", u_img_leftTexture);
+	warnIfMissing("rightTexture", u_img_rightTexture);
+	warnIfMissing("haba", u_img_haba);
+	warnIfMissing("totalShift", u_img_totalShift);
+	warnIfMissing("timeStep", u_img_timeStep);
+	warnIfMissing("manualShift", u_img_manualShift);
+	warnIfMissing("middleLinePx", u_img_middleLinePx);
+	warnIfMissing("rgbGain", u_img_rgbGain);
+	warnIfMissing("gammaValue", u_img_gamma);
+	warnIfMissing("crosstalk", u_img_crosstalk);
+	warnIfMissing("enableColorCorrection", u_img_enableColorCorrection);
+
+	warnIfMissing("sbsTexture", u_vid_sbsTexture);
+	warnIfMissing("haba", u_vid_haba);
+	warnIfMissing("totalShift", u_vid_totalShift);
+	warnIfMissing("timeStep", u_vid_timeStep);
+	warnIfMissing("manualShift", u_vid_manualShift);
+	warnIfMissing("middleLinePx", u_vid_middleLinePx);
+	warnIfMissing("rgbGain", u_vid_rgbGain);
+	warnIfMissing("gammaValue", u_vid_gamma);
+	warnIfMissing("crosstalk", u_vid_crosstalk);
+	warnIfMissing("enableColorCorrection", u_vid_enableColorCorrection);
 
 	TeapotInit();//プラグラム実行中に m 1 の順で押すと表示されるteapotへのテクスチャマッピングの準備
 	setupQuad();
@@ -608,7 +718,7 @@ void calculate_stencil() {
 	int totalShift = MiddleLine - 48 * haba;
 	for (int H = 0; H < SHGT; H++) {
 		for (int W = 0; W < 3 * MIM_W; W++) {
-			if (((W - (W - totalShift) / haba) + 2 * kk + SHIFT) % 12 < 6) {//3sub;3*4 = 12:6 = 3*2 2sub; 2*4 = 8:4 = 2*2
+			if (((W - (W - totalShift) / haba) + 3 * kk + SHIFT) % 12 < 6) {//3sub;3*4 = 12:6 = 3*2 2sub; 2*4 = 8:4 = 2*2
 				color = W % 3;
 				width = W / 3;
 				sbuf2[color][H][width] = 255;
@@ -733,7 +843,7 @@ void RGBCG(int RGB)
 }
 
 // グローバル変数に追加
-float columnPitch = 4.0f;     // 物理バリアのピッチ（４ピクセル=3sub×４時分割）
+float columnPitch = 3.0f;     // 物理バリアのピッチ（４ピクセル=3sub×４時分割）
 float subpixelShift = 0.0f;   // キャリブレーション用の水平シフト量
 
 // RGBCG_image() の代わりとなる新しい関数
@@ -752,21 +862,27 @@ void renderInterleavedImage() {
 	glBindTexture(GL_TEXTURE_2D, imageL);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, imageR);
-	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0);
-	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1);
+	glUniform1i(u_img_leftTexture, 0);
+	glUniform1i(u_img_rightTexture, 1);
 
-	// 従来方式のパラメータをすべて送る
-	glUniform1f(glGetUniformLocation(shaderProgram, "haba"), (float)haba);
-	glUniform1f(glGetUniformLocation(shaderProgram, "totalShift"), (float)totalShift);
-	glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk);
-	glUniform1f(glGetUniformLocation(shaderProgram, "manualShift"), (float)SHIFT);
+	glUniform1f(u_img_haba, (float)haba);
+	glUniform1f(u_img_totalShift, (float)totalShift);
+	glUniform1i(u_img_timeStep, kk);
+	glUniform1f(u_img_manualShift, (float)SHIFT);
 
+	// 追加済みなら
+	glUniform1f(u_img_middleLinePx, (float)MiddleLine / 3.0f);
+	glUniform3f(u_img_rgbGain, colorGainR, colorGainG, colorGainB);
+	glUniform1f(u_img_gamma, colorGamma);
+	glUniform1f(u_img_crosstalk, crosstalkFactor);
+	glUniform1i(u_img_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
 	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	// 後片付け
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
 // 動画用の描画関数
@@ -785,27 +901,74 @@ void renderInterleavedVideo() {
 	// テクスチャの設定
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, videoTexID);
-	glUniform1i(glGetUniformLocation(videoshaderProgram, "sbsTexture"), 0);
+	glUniform1i(u_vid_sbsTexture, 0);
 
-	// 従来方式のパラメータをすべて送る
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "haba"), (float)haba);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "totalShift"), (float)totalShift);
-	glUniform1i(glGetUniformLocation(videoshaderProgram, "timeStep"), kk);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "manualShift"), (float)SHIFT);
+	glUniform1f(u_vid_haba, (float)haba);
+	glUniform1f(u_vid_totalShift, (float)totalShift);
+	glUniform1i(u_vid_timeStep, kk);
+	glUniform1f(u_vid_manualShift, (float)SHIFT);
 
+	// 追加済みなら
+	glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
+	glUniform3f(u_vid_rgbGain, colorGainR, colorGainG, colorGainB);
+	glUniform1f(u_vid_gamma, colorGamma);
+	glUniform1f(u_vid_crosstalk, crosstalkFactor);
+	glUniform1i(u_vid_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
 	// 描画
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
 	// 後片付け
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
-int SPEED = 6;
+const double TARGET_HZ = 120.0;
+const auto TARGET_PERIOD = std::chrono::duration<double>(1.0 / TARGET_HZ);
+bool syncClockInitialized = false;
+std::chrono::steady_clock::time_point nextFrameDeadline;
+
 void DTimer(int totalMilliSeconds)
 {
-	if (VideoSwitch) VideoMode->Update(0);
-	glutTimerFunc(SPEED, DTimer, 0);
+	using steady_clock = std::chrono::steady_clock;
+	const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
+	auto now = steady_clock::now();
+
+	if (!syncClockInitialized) {
+		nextFrameDeadline = now;
+		syncClockInitialized = true;
+	}
+
+	bool shouldRender = false;
+	int tickCount = 0;
+	while (now >= nextFrameDeadline) {
+		shouldRender = true;
+		tickCount++;
+		nextFrameDeadline += targetPeriod;
+	}
+
+	if (shouldRender) {
+		if (VideoSwitch) VideoMode->Update(0);
+		if (arduinoSerial.is_open()) {
+			char light_command = TIME_DIV_0;
+			switch (kk) {
+			case 0: light_command = TIME_DIV_0; break;
+			case 3: light_command = TIME_DIV_1; break;
+			case 2: light_command = TIME_DIV_2; break;
+			case 1: light_command = TIME_DIV_3; break;
+			}
+			SendArduinoCommand(light_command);
+		}
+		glutPostRedisplay();
+		if (running == 1 && tickCount > 0) {
+			kk = (kk + (tickCount % 4)) % 4;
+		}
+	}
+
+	auto remain = nextFrameDeadline - steady_clock::now();
+	auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
+	unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
+	glutTimerFunc(nextCallMs, DTimer, 0);
 }
 
 int frame = 0;
@@ -821,19 +984,18 @@ void disp(void){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	if (flag == 1){
 
+
 		glDisable(GL_TEXTURE_2D);
 
 		if (mrk == 1){
 			// 動画モード
 
-			// FBOへの描画
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
+		
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedVideo(); // ★新しい動画描画関数を呼び出す
-
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+		//	glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -864,15 +1026,12 @@ void disp(void){
 		}
 		else{
 			// 画像モード
-			// FBOへの描画
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
+	
 			// 変更後：新しい関数を一度呼び出すだけ
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBOをクリア
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
-
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+		//	glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
@@ -901,20 +1060,7 @@ void disp(void){
 			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 
-		if (running){
-			kk++;
-			if (kk == 4)kk = 0;
-			if (arduinoSerial.is_open()) {
-				char light_command;
-				switch (kk) {
-				case 0:light_command = LIGHT_CON_0; break;
-				case 1:light_command = LIGHT_CON_1; break;
-				case 2:light_command = LIGHT_CON_2; break;
-				case 3:light_command = LIGHT_CON_3; break;
-				}
-				boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
-			}
-		}
+		// kkはDTimer()側で120Hz同期更新する
 	}
 
 	else{
@@ -948,6 +1094,11 @@ static void KeyEvent(unsigned char key, int x, int y){
 	case 27:
 
 		while (!VideoMode->video_flag) VideoMode->dispose();
+		if (arduinoSerial.is_open()) {
+			SendArduinoCommand(DISABLE_TIMEDIVISION);
+			SendArduinoCommand(LIGHT_EXIT);
+		}
+		timeEndPeriod(1);
 		exit(0);
 		break;
 	case 'Z':
@@ -982,8 +1133,16 @@ static void KeyEvent(unsigned char key, int x, int y){
 		glutDisplayFunc(disp);
 		break;
 	case 't':
-		if (running) running = 0;
-		else running = 1;
+		if (running) {
+			running = 0;
+			SendArduinoCommand(DISABLE_TIMEDIVISION);
+		}
+		else {
+			running = 1;
+			kk = 0;
+			SendArduinoCommand(RESET_SYNC);
+			SendArduinoCommand(ENABLE_TIMEDIVISION);
+		}
 		glutDisplayFunc(disp);
 		break;
 	case 'o':
@@ -1243,6 +1402,50 @@ static void KeyEvent(unsigned char key, int x, int y){
 		subpixelShift -= 0.1f;
 		printf("Subpixel Shift: %f\n", subpixelShift);
 		break;
+	case 'u': // Rゲインを増やす
+		colorGainR += 0.01f;
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'U': // Rゲインを減らす
+		colorGainR = max(0.50f, colorGainR - 0.01f);
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'i': // Gゲインを増やす
+		colorGainG += 0.01f;
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'I': // Gゲインを減らす
+		colorGainG = max(0.50f, colorGainG - 0.01f);
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'j': // Bゲインを増やす
+		colorGainB += 0.01f;
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'J': // Bゲインを減らす
+		colorGainB = max(0.50f, colorGainB - 0.01f);
+		printf("Color Gain (R,G,B): %.3f, %.3f, %.3f\n", colorGainR, colorGainG, colorGainB);
+		break;
+	case 'g': // ガンマを上げる
+		colorGamma += 0.02f;
+		printf("Gamma: %.3f\n", colorGamma);
+		break;
+	case 'G': // ガンマを下げる
+		colorGamma = max(0.60f, colorGamma - 0.02f);
+		printf("Gamma: %.3f\n", colorGamma);
+		break;
+	case 'y': // クロストーク補償量を増やす
+		crosstalkFactor = min(0.50f, crosstalkFactor + 0.01f);
+		printf("Crosstalk Compensation: %.3f\n", crosstalkFactor);
+		break;
+	case 'Y': // クロストーク補償量を減らす
+		crosstalkFactor = max(0.00f, crosstalkFactor - 0.01f);
+		printf("Crosstalk Compensation: %.3f\n", crosstalkFactor);
+		break;
+	case 'n': // 色補正ON/OFF
+		colorCorrectionEnabled = !colorCorrectionEnabled;
+		printf("Color Correction: %s\n", colorCorrectionEnabled ? "ON" : "OFF");
+		break;
 
 	}
 }
@@ -1270,10 +1473,16 @@ static void KeySpecialEvent(int key, int x, int y){
 
 int main(int argc, char ** argv){
 
+	MMRESULT timerResult = timeBeginPeriod(1);
+	if (timerResult != TIMERR_NOERROR) {
+		printf("[WARN] Failed to set 1ms timer resolution.\n");
+	}
 
 
-	arduinoSerial.open("COM3"); // Arduinoのポート名に合わせて変更
-	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(9600));
+	arduinoSerial.open("COM1"); // Arduinoのポート名に合わせて変更COm1はデバッグ用
+	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
+	SendArduinoCommand(RESET_SYNC);
+	SendArduinoCommand(ENABLE_TIMEDIVISION);
 	TCPClient client("127.0.0.1", 30000);
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
@@ -1294,10 +1503,11 @@ int main(int argc, char ** argv){
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);
 	glutSpecialFunc(KeySpecialEvent);
-	glutIdleFunc(disp);
+	//glutIdleFunc(disp);
 
 	glutMainLoop();
 	client.Close();
+	timeEndPeriod(1);
 
 	glDeleteTextures(1, &imageL);
 	glDeleteTextures(1, &imageR);
