@@ -1,4 +1,9 @@
-#define _CRT_SECURE_NO_WARNINGS
+ï»¿#define _CRT_SECURE_NO_WARNINGS
+#define NOMINMAX
+
+#include <algorithm>
+#include <iostream>
+#include <fstream>
 
 #include <iostream>
 #include<fstream>
@@ -6,6 +11,7 @@
 #include <boost/asio.hpp>
 #include "boost/format.hpp"
 #include <windows.h>
+#include <mmsystem.h>
 #include <stdio.h>
 #include <GL/glew.h>
 #include <GL/glut.h>
@@ -15,6 +21,8 @@
 #include "Texture.h"
 #include <vector>
 #include <sstream>
+
+#pragma comment(lib, "winmm.lib")
 
 
 FILE _iob[] = { *stdin, *stdout, *stderr };
@@ -32,16 +40,25 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define WID 528
 #define HGT 297
 
-#define LIGHT_CON_0 100
-#define LIGHT_CON_1 101
-#define LIGHT_CON_2 102
-#define LIGHT_CON_3 103
+#define REFRESH_RATE 120
+
+// PC->Arduino commands
+#define ENABLE_TIMEDIVISION 12
+#define DISABLE_TIMEDIVISION 13
+#define RESET_SYNC 20
+
+#define LIGHT_EXIT 110
+
+#define TIME_DIV_0 200
+#define TIME_DIV_1 201
+#define TIME_DIV_2 202
+#define TIME_DIV_3 203
 
 
 
-// Ã~‰æ‚Æ“®‰æ‚Ìƒpƒ^[ƒ“‚ÌŠÔ‚Å¶‚¶‚éˆÊ’u·‚Ì•â³iƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO‚ÆƒXƒeƒ“ƒVƒ‹ƒ}ƒXƒNj
-// ƒpƒlƒ‹‚²‚Æ‚Éİ’è‚·‚é•K—v‚ ‚è
-int SHIFT = 1;
+// ï¿½Ã~ï¿½ï¿½Æ“ï¿½ï¿½ï¿½Ìƒpï¿½^ï¿½[ï¿½ï¿½ï¿½ÌŠÔ‚Åï¿½ï¿½ï¿½ï¿½ï¿½Ê’uï¿½ï¿½ï¿½Ì•â³ï¿½iï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½}ï¿½bï¿½sï¿½ï¿½ï¿½Oï¿½ÆƒXï¿½eï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½}ï¿½Xï¿½Nï¿½j
+// ï¿½pï¿½lï¿½ï¿½ï¿½ï¿½ï¿½Æ‚Éİ’è‚·ï¿½ï¿½Kï¿½vï¿½ï¿½ï¿½ï¿½
+int SHIFT = 3;
 
 #define SIM_W 1920 // calibration image width
 #define SIM_H 1080 // calibration image height
@@ -49,14 +66,14 @@ int SHIFT = 1;
 #define SIN 0.139
 #define COS 0.99
 
-// teapot‚É“\‚é
-//texture‚Ìc‰¡i2^n 2^m‚Å‚È‚¢‚Æ‚¢‚¯‚È‚¢j
+// teapotï¿½É“\ï¿½ï¿½
+//textureï¿½Ìcï¿½ï¿½ï¿½i2^n 2^mï¿½Å‚È‚ï¿½ï¿½Æ‚ï¿½ï¿½ï¿½ï¿½È‚ï¿½ï¿½j
 
 #define TEAPOT_HEIGHT 512
 #define TEAPOT_WIDTH  512
 
-#define SHGT 12 // ƒXƒeƒ“ƒVƒ‹1’PˆÊ‚Ìc•
-#define MIM_W 1920 + 1008  //1968 // ƒXƒeƒ“ƒVƒ‹ƒ}[ƒWƒ“•t‚«‰¡•
+#define SHGT 12 // ï¿½Xï¿½eï¿½ï¿½ï¿½Vï¿½ï¿½1ï¿½Pï¿½Ê‚Ìcï¿½ï¿½
+#define MIM_W 1920 + 1008  //1968 // ï¿½Xï¿½eï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½}ï¿½[ï¿½Wï¿½ï¿½ï¿½tï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 
 float eyeposx[2];
@@ -64,11 +81,18 @@ float eyeposy[2];
 float eyeposz[2];
 float zfar = 3000;
 float zsft = 0;
-float alphax = 0.0;
+float alphax = 1.0;
 int habat = 0;
 
-float crosstalkFactor = 0.15f; // ƒNƒƒXƒg[ƒNŒW”‚Ì‰Šú’l (15%)
-float headTrackShift = 0.0f; // ƒwƒbƒhƒgƒ‰ƒbƒLƒ“ƒO‚É‚æ‚éƒVƒtƒg—ÊiƒTƒuƒsƒNƒZƒ‹’PˆÊj
+float crosstalkFactor = 0.15f; // ï¿½Nï¿½ï¿½ï¿½Xï¿½gï¿½[ï¿½Nï¿½Wï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½ï¿½l (15%)
+float headTrackShift = 0.0f; // ï¿½wï¿½bï¿½hï¿½gï¿½ï¿½ï¿½bï¿½Lï¿½ï¿½ï¿½Oï¿½É‚ï¿½ï¿½Vï¿½tï¿½gï¿½Êiï¿½Tï¿½uï¿½sï¿½Nï¿½Zï¿½ï¿½ï¿½Pï¿½Êj
+
+// ï¿½Fï¿½â³ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½iï¿½ï¿½ï¿½@ï¿½Å’ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½â‚·ï¿½ï¿½ï¿½æ‚¤ï¿½ÉƒOï¿½ï¿½ï¿½[ï¿½oï¿½ï¿½ï¿½ï¿½ï¿½j
+float colorGainR = 1.00f;
+float colorGainG = 1.00f;
+float colorGainB = 1.00f;
+float colorGamma = 1.00f;
+bool colorCorrectionEnabled = true;
 
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
@@ -86,13 +110,13 @@ char filePath[32]; // store filename
 float delta = 0.0;
 float DotPixel = 0.27;
 float DotSubPixel = 0.09;// DotSubPixel=DotPixel(=0.27)/3
-float theta = 30; // teapot‚ÌŒü‚«‚ª•Ï‚í‚é
+float theta = 30; // teapotï¿½ÌŒï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï‚ï¿½ï¿½
 
 int flag = 0; // an auto parameter acting as a switch signal
 int img = 1; // image number: 1~10
 int qq = 1; // an auto parameter acting as a switch signal
 int haba = haba_first; // phase width with 1/3 pixel (= sub-pixel)
-int kk = 0; // •ªŠ„‚Ì§Œäƒpƒ‰ƒ[ƒ^
+int kk = 0; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìï¿½ï¿½ï¿½pï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^
 int cali_flag = 0; // calibation mode
 // int phaba = 0;
 // int pMiddleLine = 0;
@@ -108,7 +132,7 @@ float PosX = 0;
 float PosY = -0.18;
 float PosZ = 0.11;
 
-// ‰æ‘œ•\¦—pƒeƒNƒXƒ`ƒƒ
+// ï¿½æ‘œï¿½\ï¿½ï¿½ï¿½pï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½
 unsigned char image_texture[2][SIM_H][SIM_W][3];
 GLuint imageL, imageR;
 
@@ -116,134 +140,66 @@ const int MiddleDefault = 3420;
 //const int MiddleDefault = 2340;
 int MiddleLine = MiddleDefault;
 int mrk = 0;
-int eyeright = 1; // 1: ‰E–Ú‰æ‘œ‚ğ•\¦, 0: ‰E–Ú‰æ‘œ”ñ•\¦
-int eyeleft = 1; // 1: ¶–Ú‰æ‘œ‚ğ•\¦, 0: ¶–Ú‰æ‘œ”ñ•\¦
+int eyeright = 1; // 1: ï¿½Eï¿½Ú‰æ‘œï¿½ï¿½\ï¿½ï¿½, 0: ï¿½Eï¿½Ú‰æ‘œï¿½ï¿½\ï¿½ï¿½
+int eyeleft = 1; // 1: ï¿½ï¿½ï¿½Ú‰æ‘œï¿½ï¿½\ï¿½ï¿½, 0: ï¿½ï¿½ï¿½Ú‰æ‘œï¿½ï¿½\ï¿½ï¿½
 const float DefaultScale = 1.0f;
 float videoscale = 1.0f;//0.923f
 bool VideoSwitch = false;
 
-// random ‚ÍkeyboardFuc‚Ì’†‚Å‚µ‚©g‚Á‚Ä‚¢‚È‚¢
+// random ï¿½ï¿½keyboardFucï¿½Ì’ï¿½ï¿½Å‚ï¿½ï¿½ï¿½ï¿½gï¿½ï¿½ï¿½Ä‚ï¿½ï¿½È‚ï¿½
 int random = 0; // random mode for test
 
-int list;
-unsigned char sbuf2[3][SHGT][MIM_W];
-int VideoFlag = 1;
-
-GLuint Tex_Name;
-GLuint RenderBuffer;
-GLuint FrameBuffer;
 GLuint shaderProgram;
 GLuint videoshaderProgram;
+
+// --- uniform location cache (image shader) ---
+GLint u_img_leftTexture = -1;
+GLint u_img_rightTexture = -1;
+GLint u_img_haba = -1;
+GLint u_img_totalShift = -1;
+GLint u_img_timeStep = -1;
+GLint u_img_manualShift = -1;
+float barrierSlantY = 1.0f;   // 1.0 ï¿½ï¿½ tan^-1(-3)
+
+GLint u_img_slantY = -1;
+GLint u_vid_slantY = -1;
+//GLint u_img_middleLinePx = -1; // ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½uniformï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡
+//GLint u_img_rgbGain = -1;
+//GLint u_img_gamma = -1;
+//GLint u_img_crosstalk = -1;
+//GLint u_img_enableColorCorrection = -1;
+
+// --- uniform location cache (video shader) ---
+GLint u_vid_sbsTexture = -1;
+GLint u_vid_haba = -1;
+GLint u_vid_totalShift = -1;
+GLint u_vid_timeStep = -1;
+GLint u_vid_manualShift = -1;
+//GLint u_vid_middleLinePx = -1; // ï¿½ï¿½ï¿½Ç‰ï¿½ï¿½ï¿½ï¿½ï¿½uniformï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ê‡
+//GLint u_vid_rgbGain = -1;
+//GLint u_vid_gamma = -1;
+//GLint u_vid_crosstalk = -1;
+//GLint u_vid_enableColorCorrection = -1;
 
 bool ReserveLR = true;
 
 boost::asio::io_service io;
 boost::asio::serial_port arduinoSerial(io);
 
-// teapotƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO
-static GLubyte Teapotimage[TEAPOT_HEIGHT][TEAPOT_WIDTH][4];
-GLuint teapot;
-
-// teapot‰ñ“]
-int preX = 0, preY = 0, dx, dy, IntegralX = 0, IntegralY = 0;
-
-// Teapot‚É‚Í‚éƒeƒNƒXƒ`ƒƒ(TGAƒtƒ@ƒCƒ‹)‚Ì“Ç‚İ‚İor¶¬
-void TeapotInitTexture(void){
-
-	FILE *fp;
-	errno_t error;
-	int x, z;
-
-	// texture file open 
-	if ((error = fopen_s(&fp, "test.tga", "rb")) != 0){//fopen‚¾‚Æƒrƒ‹ƒh‚É“{‚ç‚ê‚½‚Ì‚Åfopen_sg—p
-		//	if ((error = fopen_s(&fp, "TeapotBackground.tga", "rb")) != 0){
-		fprintf(stderr, "texture file cannot open\n");
-		return;
-	}
-	fseek(fp, 18, SEEK_SET);//TGAƒtƒ@ƒCƒ‹‚ÌÅ‰18byte‚ÍRGBA‚Å‚Í‚È‚­‰æ‘œ‚Ì‘å‚«‚³‚Æ‚©‚»‚¤‚¢‚¤ƒf[ƒ^‚¾‚©‚ç”ò‚Î‚·B
-	for (x = 0; x < TEAPOT_HEIGHT; x++){
-		for (z = 0; z < TEAPOT_WIDTH; z++){
-			Teapotimage[x][z][2] = fgetc(fp);// B 
-			Teapotimage[x][z][1] = fgetc(fp);// G 
-			Teapotimage[x][z][0] = fgetc(fp);// R 
-			Teapotimage[x][z][3] = fgetc(fp);// alpha 
+// Arduinoï¿½ÉƒRï¿½}ï¿½ï¿½ï¿½hï¿½Ôï¿½ï¿½iintï¿½lï¿½jï¿½ï¿½1ï¿½oï¿½Cï¿½gï¿½Å‘ï¿½ï¿½Mï¿½ï¿½ï¿½ï¿½Öï¿½
+void SendArduinoCommand(int command) {
+	if (arduinoSerial.is_open()) {
+		unsigned char cmd = static_cast<unsigned char>(command);
+		boost::system::error_code ec;
+		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&cmd, 1), ec);
+		if (ec || bytes_written != 1) {
+			printf("[ERROR] Arduinoï¿½Ö‚Ì‘ï¿½ï¿½Mï¿½ï¿½ï¿½s: %s\n", ec.message().c_str());
 		}
 	}
-	fclose(fp);
-}
-
-//Teapod‚ÉƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO‚·‚é‚½‚ß‚Ì€”õ
-void TeapotInit(void){
-	TeapotInitTexture();
-
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glGenTextures(1, &teapot);
-	glBindTexture(GL_TEXTURE_2D, teapot);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, TEAPOT_WIDTH, TEAPOT_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, Teapotimage);
-}
-
-void mySetLight(void)
-{
-	GLfloat light_diffuse[] = { 0.9, 0.9, 0.9, 1.0 };	// ŠgU”½ËŒõ
-	GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };	// ‹¾–Ê”½ËŒõ
-	GLfloat light_ambient[] = { 0.3, 0.3, 0.3, 0.1 };	// ŠÂ‹«Œõ
-	GLfloat light_position[] = { 0.0, 0.0, 100.0, 1.0 };	// ˆÊ’u‚Æí—Ş
-
-	// ŒõŒ¹‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);	 // ŠgU”½ËŒõ‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular); // ‹¾–Ê”½ËŒõ‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);	 // ŠÂ‹«Œõ‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_POSITION, light_position); // ˆÊ’u‚Æí—Ş‚Ìİ’è
-
-	glShadeModel(GL_SMOOTH);	// ƒVƒF[ƒfƒBƒ“ƒO‚Ìí—Ş‚Ìİ’è
-	glEnable(GL_LIGHT0);		// ŒõŒ¹‚Ì—LŒø‰»
-}
-
-void List()
-{
-	GLfloat nad[] = { 1.0, 1.0, 1.0, 1.0 };
-	static GLfloat lightPos[] = { 0.4, 0.2, 0.1, 0.8 };
-
-	list = glGenLists(1);
-	glNewList(list, GL_COMPILE_AND_EXECUTE);
-	{
-		glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, nad);
-		glEnable(GL_LIGHTING);
-		glEnable(GL_LIGHT0);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-		glRotatef(-theta, 0, 1, 0);
-		glBindTexture(GL_TEXTURE_2D, teapot);
-		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glEnable(GL_TEXTURE_2D);
-
-		glBegin(GL_POLYGON);
-		glTexCoord2d(0.0, 1.0);	 glVertex3f(-480.0, 270.0, -250.0); //glNormal3f(0, 0, 1);
-		glTexCoord2d(0.0, 0.0);	glVertex3f(-480.0, -270.0, -250.0); //glNormal3f(0, 0, 1);
-		glTexCoord2d(1.0, 0.0);	glVertex3f(480.0, -270.0, -250.0); //glNormal3f(0, 0, 1);
-		glTexCoord2d(1.0, 1.0);	glVertex3f(480.0, 270.0, -250.0); //glNormal3f(0, 0, 1);
-		glEnd();
-
-		glDisable(GL_TEXTURE_2D);
-
-		glRotatef(theta, 0, 1, 0);
-		glBindTexture(GL_TEXTURE_2D, teapot);
-		glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-		glEnable(GL_TEXTURE_2D);
-
-		glutSolidTeapot(100);
-
-		//		glDisable(GL_TEXTURE_2D);
-		glDisable(GL_LIGHT0);
-		glDisable(GL_LIGHTING);
+	else {
+		printf("[WARN] Arduinoï¿½Vï¿½ï¿½ï¿½Aï¿½ï¿½ï¿½|ï¿½[ï¿½gï¿½ï¿½ï¿½Jï¿½ï¿½ï¿½Ä‚ï¿½ï¿½Ü‚ï¿½ï¿½ï¿½\n");
 	}
-	glEndList();
 }
-
 
 void Receive(TCPClient& client, const std::function<void(boost::system::error_code, std::size_t)>& callback)
 {
@@ -251,34 +207,34 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 	client.RecieveAsync(buffer, [&, buffer](boost::system::error_code e, size_t l)
 	{
 		const float* datas = boost::asio::buffer_cast<const float*>(buffer->data());
-		if (cali_flag == 1){
+		if (cali_flag == 1) {
 			caliX = (datas[3 * 0 + 0] + datas[3 * 1 + 0]) / 2 + PosX;
-			caliY = COS*(datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + SIN*(datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 + PosY;
-			caliZ = COS*(datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 - SIN*(datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + PosZ;
+			caliY = COS * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + SIN * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 + PosY;
+			caliZ = COS * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 - SIN * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + PosZ;
 			ht = 1;
 			printf("head-tracking: ON\n");
 			cali_flag = 0;
 		}
-		else{
+		else {
 			tmpX = (datas[3 * 0 + 0] + datas[3 * 1 + 0]) / 2 + PosX;
-			tmpY = COS*(datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + SIN*(datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 + PosY;
-			tmpZ = COS*(datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 - SIN*(datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + PosZ;
+			tmpY = COS * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + SIN * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 + PosY;
+			tmpZ = COS * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 - SIN * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + PosZ;
 			eyeposx[0] = 1000 * (datas[3 * 1 + 0] + PosX);
 			eyeposx[1] = 1000 * (datas[3 * 0 + 0] + PosX);
-			eyeposy[0] = 1000 * (COS*datas[3 * 1 + 1] + SIN*datas[3 * 1 + 2] + PosY);
-			eyeposy[1] = 1000 * (COS*datas[3 * 0 + 1] + SIN*datas[3 * 0 + 2] + PosY);
-			eyeposz[0] = 1000 * (COS*datas[3 * 1 + 2] + SIN*datas[3 * 1 + 1] + PosZ);
-			eyeposz[1] = 1000 * (COS*datas[3 * 0 + 2] + SIN*datas[3 * 0 + 1] + PosZ);
+			eyeposy[0] = 1000 * (COS*datas[3 * 1 + 1] + SIN * datas[3 * 1 + 2] + PosY);
+			eyeposy[1] = 1000 * (COS*datas[3 * 0 + 1] + SIN * datas[3 * 0 + 2] + PosY);
+			eyeposz[0] = 1000 * (COS*datas[3 * 1 + 2] + SIN * datas[3 * 1 + 1] + PosZ);
+			eyeposz[1] = 1000 * (COS*datas[3 * 0 + 2] + SIN * datas[3 * 0 + 1] + PosZ);
 		}
 
-		if (ht == 1){
-			// haba, delta‚Ì•Ï‰»—Ê‚É‚Â‚¢‚Ä‚ÍÀŒ±“I‚É‹‚ß‚½
+		if (ht == 1) {
+			// haba, deltaï¿½Ì•Ï‰ï¿½ï¿½Ê‚É‚Â‚ï¿½ï¿½Ä‚Íï¿½ï¿½ï¿½ï¿½Iï¿½É‹ï¿½ï¿½ß‚ï¿½
 			haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
 			// haba = int(haba_first * caliZ / tmpZ);
 			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX)) * 1000 / DotSubPixel;//face moves by sub-pixel units
 
 			headTrackShift = delta;
-			//ƒfƒoƒbƒO—p
+			//ï¿½fï¿½oï¿½bï¿½Oï¿½p
 			//printf("Calibrated Z=%.3f, Current Z=%.3f -> Calculated Shift=%.2f\n", caliZ, tmpZ, headTrackShift);
 			printf("CALIB(X:%.2f, Z:%.2f), CURRENT(X:%.2f, Z:%.2f) ---> DELTA: %.2f\n",
 				caliX, caliZ, tmpX, tmpZ, delta);
@@ -300,82 +256,6 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 		buffer->consume(sizeof(float) * 6);
 		Receive(client, callback);
 	});
-}
-
-bool checkFramebufferStatus()
-{
-	// check FBO status
-	GLenum status = glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT);
-	switch (status)
-	{
-	case GL_FRAMEBUFFER_COMPLETE_EXT:
-		//std::cout << "Framebuffer complete.\n";
-		return true;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Attachment is NOT complete.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: No image is attached to FBO.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_DIMENSIONS_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Attached images have different dimensions.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_FORMATS_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Color attached images have different internal formats.\n";
-		return false;
-	case GL_FRAMEBUFFER_INCOMPLETE_DRAW_BUFFER_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Draw buffer.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_INCOMPLETE_READ_BUFFER_EXT:
-		std::cout << "[ERROR] Framebuffer incomplete: Read buffer.\n";
-		return false;
-
-	case GL_FRAMEBUFFER_UNSUPPORTED_EXT:
-		std::cout << "[ERROR] Unsupported by FBO implementation.\n";
-		return false;
-
-	default:
-		std::cout << "[ERROR] Unknow error.\n";
-		return false;
-	}
-}
-
-void Frame_Buffer_Sets(){
-
-	//ƒeƒNƒXƒ`ƒƒ
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	glGenTextures(1, &Tex_Name);
-	glBindTexture(GL_TEXTURE_2D, Tex_Name);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, MIM_W, 1080, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
-
-	//ƒŒƒ“ƒ_[ƒoƒbƒtƒ@
-	glGenRenderbuffersEXT(1, &RenderBuffer);
-	glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, RenderBuffer);
-	glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT, MIM_W, 1080);
-
-	//ƒtƒŒ[ƒ€ƒoƒbƒtƒ@
-	glGenFramebuffersEXT(1, &FrameBuffer);
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
-	glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, Tex_Name, 0);
-	glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, RenderBuffer);
-	glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, RenderBuffer);
-
-	glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-
-	if (checkFramebufferStatus() == false){
-		exit(0);
-	}
-
 }
 
 int ppm_reader(char *filename, unsigned char *pimage)
@@ -444,13 +324,13 @@ int ppm_reader(char *filename, unsigned char *pimage)
 	fclose(fp);
 }
 
-// ƒVƒF[ƒ_[ƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚İAƒRƒ“ƒpƒCƒ‹‚µ‚ÄAƒvƒƒOƒ‰ƒ€‚ğì¬‚·‚éƒwƒ‹ƒp[ŠÖ”
+// ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½Ç‚İï¿½ï¿½İAï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ÄAï¿½vï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì¬ï¿½ï¿½ï¿½ï¿½wï¿½ï¿½ï¿½pï¿½[ï¿½Öï¿½
 GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path) {
-	// 1. ƒVƒF[ƒ_[ƒIƒuƒWƒFƒNƒg‚ğì¬
+	// 1. ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½Iï¿½uï¿½Wï¿½Fï¿½Nï¿½gï¿½ï¿½ï¿½ì¬
 	GLuint VertexShaderID = glCreateShader(GL_VERTEX_SHADER);
 	GLuint FragmentShaderID = glCreateShader(GL_FRAGMENT_SHADER);
 
-	// 2. ’¸“_ƒVƒF[ƒ_[‚Ìƒ\[ƒXƒR[ƒh‚ğƒtƒ@ƒCƒ‹‚©‚ç“Ç‚İ‚Ş
+	// 2. ï¿½ï¿½ï¿½_ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½Ìƒ\ï¿½[ï¿½Xï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚İï¿½ï¿½ï¿½
 	std::string VertexShaderCode;
 	std::ifstream VertexShaderStream(vertex_file_path, std::ios::in);
 	if (VertexShaderStream.is_open()) {
@@ -461,11 +341,11 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 	}
 	else {
 		printf("Failed to open %s\n", vertex_file_path);
-		// getchar(); // ƒRƒ“ƒ\[ƒ‹‚ªˆêu‚Å•Â‚¶‚È‚¢‚æ‚¤‚É‚·‚é
+		// getchar(); // ï¿½Rï¿½ï¿½ï¿½\ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½uï¿½Å•Â‚ï¿½ï¿½È‚ï¿½ï¿½æ‚¤ï¿½É‚ï¿½ï¿½ï¿½
 		return 0;
 	}
 
-	// 3. ƒtƒ‰ƒOƒƒ“ƒgƒVƒF[ƒ_[‚Ìƒ\[ƒXƒR[ƒh‚ğƒtƒ@ƒCƒ‹‚©‚ç“Ç‚İ‚Ş
+	// 3. ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½Ìƒ\ï¿½[ï¿½Xï¿½Rï¿½[ï¿½hï¿½ï¿½ï¿½tï¿½@ï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç‚İï¿½ï¿½ï¿½
 	std::string FragmentShaderCode;
 	std::ifstream FragmentShaderStream(fragment_file_path, std::ios::in);
 	if (FragmentShaderStream.is_open()) {
@@ -478,13 +358,13 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 	GLint Result = GL_FALSE;
 	int InfoLogLength;
 
-	// 4. ’¸“_ƒVƒF[ƒ_[‚ğƒRƒ“ƒpƒCƒ‹
+	// 4. ï¿½ï¿½ï¿½_ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½ï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½
 	printf("Compiling shader : %s\n", vertex_file_path);
 	char const* VertexSourcePointer = VertexShaderCode.c_str();
 	glShaderSource(VertexShaderID, 1, &VertexSourcePointer, NULL);
 	glCompileShader(VertexShaderID);
 
-	// ’¸“_ƒVƒF[ƒ_[‚ÌƒRƒ“ƒpƒCƒ‹Œ‹‰Ê‚ğƒ`ƒFƒbƒN
+	// ï¿½ï¿½ï¿½_ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ÌƒRï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Ê‚ï¿½ï¿½`ï¿½Fï¿½bï¿½N
 	glGetShaderiv(VertexShaderID, GL_COMPILE_STATUS, &Result);
 	glGetShaderiv(VertexShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
 	if (InfoLogLength > 0) {
@@ -493,13 +373,13 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 		printf("%s\n", &VertexShaderErrorMessage[0]);
 	}
 
-	// 5. ƒtƒ‰ƒOƒƒ“ƒgƒVƒF[ƒ_[‚ğƒRƒ“ƒpƒCƒ‹
+	// 5. ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½ï¿½Rï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½
 	printf("Compiling shader : %s\n", fragment_file_path);
 	char const* FragmentSourcePointer = FragmentShaderCode.c_str();
 	glShaderSource(FragmentShaderID, 1, &FragmentSourcePointer, NULL);
 	glCompileShader(FragmentShaderID);
 
-	// ƒtƒ‰ƒOƒƒ“ƒgƒVƒF[ƒ_[‚ÌƒRƒ“ƒpƒCƒ‹Œ‹‰Ê‚ğƒ`ƒFƒbƒN
+	// ï¿½tï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½gï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ÌƒRï¿½ï¿½ï¿½pï¿½Cï¿½ï¿½ï¿½ï¿½ï¿½Ê‚ï¿½ï¿½`ï¿½Fï¿½bï¿½N
 	glGetShaderiv(FragmentShaderID, GL_COMPILE_STATUS, &Result);
 	glGetShaderiv(FragmentShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
 	if (InfoLogLength > 0) {
@@ -508,14 +388,14 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 		printf("%s\n", &FragmentShaderErrorMessage[0]);
 	}
 
-	// 6. ƒVƒF[ƒ_[ƒvƒƒOƒ‰ƒ€‚ğì¬‚µA2‚Â‚ÌƒVƒF[ƒ_[‚ğƒŠƒ“ƒN‚·‚é
+	// 6. ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½vï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ì¬ï¿½ï¿½ï¿½A2ï¿½Â‚ÌƒVï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½ï¿½
 	printf("Linking program\n");
 	GLuint ProgramID = glCreateProgram();
 	glAttachShader(ProgramID, VertexShaderID);
 	glAttachShader(ProgramID, FragmentShaderID);
 	glLinkProgram(ProgramID);
 
-	// ƒŠƒ“ƒNŒ‹‰Ê‚ğƒ`ƒFƒbƒN
+	// ï¿½ï¿½ï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½Ê‚ï¿½ï¿½`ï¿½Fï¿½bï¿½N
 	glGetProgramiv(ProgramID, GL_LINK_STATUS, &Result);
 	glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &InfoLogLength);
 	if (InfoLogLength > 0) {
@@ -524,68 +404,128 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 		printf("%s\n", &ProgramErrorMessage[0]);
 	}
 
-	// 7. ƒŠƒ“ƒNŒã‚ÍŒÂX‚ÌƒVƒF[ƒ_[ƒIƒuƒWƒFƒNƒg‚Í•s—v‚È‚Ì‚Åíœ‚·‚é
+	// 7. ï¿½ï¿½ï¿½ï¿½ï¿½Nï¿½ï¿½ÍŒÂXï¿½ÌƒVï¿½Fï¿½[ï¿½_ï¿½[ï¿½Iï¿½uï¿½Wï¿½Fï¿½Nï¿½gï¿½Í•sï¿½vï¿½È‚Ì‚Åíœï¿½ï¿½ï¿½ï¿½
 	glDetachShader(ProgramID, VertexShaderID);
 	glDetachShader(ProgramID, FragmentShaderID);
 	glDeleteShader(VertexShaderID);
 	glDeleteShader(FragmentShaderID);
 
-	// 8. Š®¬‚µ‚½ƒvƒƒOƒ‰ƒ€‚ÌID‚ğ•Ô‚·
+	// 8. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½vï¿½ï¿½ï¿½Oï¿½ï¿½ï¿½ï¿½ï¿½ï¿½IDï¿½ï¿½Ô‚ï¿½
 	return ProgramID;
 }
 
-// •`‰æ—p‚ÌlŠpŒ`(Quad)‚ğ€”õ‚·‚é‚½‚ß‚Ì•Ï”‚ÆŠÖ”
+// ï¿½`ï¿½ï¿½pï¿½Ìlï¿½pï¿½`(Quad)ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½é‚½ï¿½ß‚Ì•Ïï¿½ï¿½ÆŠÖï¿½
 GLuint quadVBO, quadVAO;
 GLfloat quadVertices[] = {
-    // ˆÊ’u(x,y,z)      // ƒeƒNƒXƒ`ƒƒÀ•W(u,v)
-    -1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // VÀ•W‚ğ 1.0 ¨ 0.0 ‚É•ÏX
-    -1.0f, -1.0f, 0.0f,  0.0f, 1.0f, // VÀ•W‚ğ 0.0 ¨ 1.0 ‚É•ÏX
-     1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // VÀ•W‚ğ 0.0 ¨ 1.0 ‚É•ÏX
+	// ï¿½Ê’u(x,y,z)      // ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½ï¿½ï¿½W(u,v)
+	-1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // Vï¿½ï¿½ï¿½Wï¿½ï¿½ 1.0 ï¿½ï¿½ 0.0 ï¿½É•ÏX
+	-1.0f, -1.0f, 0.0f,  0.0f, 1.0f, // Vï¿½ï¿½ï¿½Wï¿½ï¿½ 0.0 ï¿½ï¿½ 1.0 ï¿½É•ÏX
+	 1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // Vï¿½ï¿½ï¿½Wï¿½ï¿½ 0.0 ï¿½ï¿½ 1.0 ï¿½É•ÏX
 
-    -1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // VÀ•W‚ğ 1.0 ¨ 0.0 ‚É•ÏX
-     1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // VÀ•W‚ğ 0.0 ¨ 1.0 ‚É•ÏX
-     1.0f,  1.0f, 0.0f,  1.0f, 0.0f  // VÀ•W‚ğ 1.0 ¨ 0.0 ‚É•ÏX
+	-1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // Vï¿½ï¿½ï¿½Wï¿½ï¿½ 1.0 ï¿½ï¿½ 0.0 ï¿½É•ÏX
+	 1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // Vï¿½ï¿½ï¿½Wï¿½ï¿½ 0.0 ï¿½ï¿½ 1.0 ï¿½É•ÏX
+	 1.0f,  1.0f, 0.0f,  1.0f, 0.0f  // Vï¿½ï¿½ï¿½Wï¿½ï¿½ 1.0 ï¿½ï¿½ 0.0 ï¿½É•ÏX
 };
 
 void setupQuad() {
-	// VAO (Vertex Array Object) ‚ğì¬‚µ‚ÄƒoƒCƒ“ƒh
+	// VAO (Vertex Array Object) ï¿½ï¿½ï¿½ì¬ï¿½ï¿½ï¿½Äƒoï¿½Cï¿½ï¿½ï¿½h
 	glGenVertexArrays(1, &quadVAO);
 	glBindVertexArray(quadVAO);
 
-	// VBO (Vertex Buffer Object) ‚ğì¬‚µ‚ÄƒoƒCƒ“ƒh
+	// VBO (Vertex Buffer Object) ï¿½ï¿½ï¿½ì¬ï¿½ï¿½ï¿½Äƒoï¿½Cï¿½ï¿½ï¿½h
 	glGenBuffers(1, &quadVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-	// ’¸“_ƒf[ƒ^‚ğVBO‚É‘‚«‚Ş
+	// ï¿½ï¿½ï¿½_ï¿½fï¿½[ï¿½^ï¿½ï¿½VBOï¿½Éï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
 
-	// ’¸“_‘®«ƒ|ƒCƒ“ƒ^[‚ğİ’è (’¸“_ƒVƒF[ƒ_[‚Ì layout(location = 0) ‚É‘Î‰)
-	// ‘®«0: ’¸“_ˆÊ’u
+	// ï¿½ï¿½ï¿½_ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½[ï¿½ï¿½İ’ï¿½ (ï¿½ï¿½ï¿½_ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½ layout(location = 0) ï¿½É‘Î‰ï¿½)
+	// ï¿½ï¿½ï¿½ï¿½0: ï¿½ï¿½ï¿½_ï¿½Ê’u
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
 
-	// ’¸“_‘®«ƒ|ƒCƒ“ƒ^[‚ğİ’è (’¸“_ƒVƒF[ƒ_[‚Ì layout(location = 1) ‚É‘Î‰)
-	// ‘®«1: ƒeƒNƒXƒ`ƒƒUVÀ•W
+	// ï¿½ï¿½ï¿½_ï¿½ï¿½ï¿½ï¿½ï¿½|ï¿½Cï¿½ï¿½ï¿½^ï¿½[ï¿½ï¿½İ’ï¿½ (ï¿½ï¿½ï¿½_ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½ layout(location = 1) ï¿½É‘Î‰ï¿½)
+	// ï¿½ï¿½ï¿½ï¿½1: ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½UVï¿½ï¿½ï¿½W
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
 
-	// VAO‚ÌƒoƒCƒ“ƒh‚ğ‰ğœ
+	// VAOï¿½Ìƒoï¿½Cï¿½ï¿½ï¿½hï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 	glBindVertexArray(0);
 }
 
-void init(void){
+void init(void) {
 	glewInit();
+	typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int);
+
+	PFNWGLSWAPINTERVALEXTPROC pWglSwapIntervalEXT =
+		(PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
+
+	if (pWglSwapIntervalEXT) {
+		pWglSwapIntervalEXT(1);
+	}
+	else {
+		printf("[WARN] V-Sync extension not available.\n");
+	}
 	anmode = 0;
 
 	glGenTextures(1, &imageL);
 	glGenTextures(1, &imageR);
 
-	Frame_Buffer_Sets();
 
 	shaderProgram = LoadShaders("passthrough.vert", "interleave.frag");
 	videoshaderProgram = LoadShaders("passthrough.vert", "sbs_interleave.frag");
 
+	// --- cache uniform locations (image) ---
+	u_img_leftTexture = glGetUniformLocation(shaderProgram, "leftTexture");
+	u_img_rightTexture = glGetUniformLocation(shaderProgram, "rightTexture");
+	u_img_haba = glGetUniformLocation(shaderProgram, "haba");
+	u_img_totalShift = glGetUniformLocation(shaderProgram, "totalShift");
+	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
+	u_img_manualShift = glGetUniformLocation(shaderProgram, "manualShift");
+	u_img_slantY = glGetUniformLocation(shaderProgram, "slantY");
+	/*u_img_middleLinePx = glGetUniformLocation(shaderProgram, "middleLinePx");
+	u_img_rgbGain = glGetUniformLocation(shaderProgram, "rgbGain");
+	u_img_gamma = glGetUniformLocation(shaderProgram, "gammaValue");
+	u_img_crosstalk = glGetUniformLocation(shaderProgram, "crosstalk");
+	u_img_enableColorCorrection = glGetUniformLocation(shaderProgram, "enableColorCorrection");*/
 
-	TeapotInit();//ƒvƒ‰ƒOƒ‰ƒ€Às’†‚É m 1 ‚Ì‡‚Å‰Ÿ‚·‚Æ•\¦‚³‚ê‚éteapot‚Ö‚ÌƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO‚Ì€”õ
+	// --- cache uniform locations (video) ---
+	u_vid_sbsTexture = glGetUniformLocation(videoshaderProgram, "sbsTexture");
+	u_vid_haba = glGetUniformLocation(videoshaderProgram, "haba");
+	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
+	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
+	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
+	/*u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
+	u_vid_rgbGain = glGetUniformLocation(videoshaderProgram, "rgbGain");
+	u_vid_gamma = glGetUniformLocation(videoshaderProgram, "gammaValue");
+	u_vid_crosstalk = glGetUniformLocation(videoshaderProgram, "crosstalk");
+	u_vid_enableColorCorrection = glGetUniformLocation(videoshaderProgram, "enableColorCorrection");*/
+
+	auto warnIfMissing = [](const char* name, GLint loc) {
+		if (loc < 0) printf("[WARN] uniform not found: %s\n", name);
+	};
+	warnIfMissing("leftTexture", u_img_leftTexture);
+	warnIfMissing("rightTexture", u_img_rightTexture);
+	warnIfMissing("haba", u_img_haba);
+	warnIfMissing("totalShift", u_img_totalShift);
+	warnIfMissing("timeStep", u_img_timeStep);
+	warnIfMissing("manualShift", u_img_manualShift);
+	/*warnIfMissing("middleLinePx", u_img_middleLinePx);
+	warnIfMissing("rgbGain", u_img_rgbGain);
+	warnIfMissing("gammaValue", u_img_gamma);
+	warnIfMissing("crosstalk", u_img_crosstalk);
+	warnIfMissing("enableColorCorrection", u_img_enableColorCorrection);*/
+
+	warnIfMissing("sbsTexture", u_vid_sbsTexture);
+	warnIfMissing("haba", u_vid_haba);
+	warnIfMissing("totalShift", u_vid_totalShift);
+	warnIfMissing("timeStep", u_vid_timeStep);
+	warnIfMissing("manualShift", u_vid_manualShift);
+	/*warnIfMissing("middleLinePx", u_vid_middleLinePx);
+	warnIfMissing("rgbGain", u_vid_rgbGain);
+	warnIfMissing("gammaValue", u_vid_gamma);
+	warnIfMissing("crosstalk", u_vid_crosstalk);
+	warnIfMissing("enableColorCorrection", u_vid_enableColorCorrection);
+*/
 	setupQuad();
 	ht = 0;
 	printf("head-tracking: OFF\n");
@@ -593,184 +533,48 @@ void init(void){
 	printf("haba = %d\n", haba);
 }
 
-void calculate_stencil() {
-	int color, width;
-
-	for (int H = 0; H < SHGT; H++) {
-		for (int W = 0; W < MIM_W; W++) {
-			for (int i = 0; i < 3; i++) {
-				sbuf2[i][H][W] = 0;
-			}
-		}
-	}
-
-	/* CalStencil ƒXƒeƒ“ƒVƒ‹‚ÌŒvZ@*/
-	int totalShift = MiddleLine - 48 * haba;
-	for (int H = 0; H < SHGT; H++) {
-		for (int W = 0; W < 3 * MIM_W; W++) {
-			if (((W - (W - totalShift) / haba) + 2 * kk + SHIFT) % 12 < 6) {//3sub;3*4 = 12:6 = 3*2 2sub; 2*4 = 8:4 = 2*2
-				color = W % 3;
-				width = W / 3;
-				sbuf2[color][H][width] = 255;
-			}
-		}
-	}
-}
-
-void set_stencil_mask(int RGB) {
-	int i;
-
-	glEnable(GL_STENCIL_TEST);
-	glColorMask(0, 0, 0, 0);
-	glDepthMask(0);
-
-	glStencilMask(1);
-	glStencilFunc(GL_ALWAYS, 0x1, 0x1);
-	glStencilOp(GL_REPLACE, GL_REPLACE, GL_REPLACE);
-
-	glViewport(0, 0, MIM_W, SHGT);
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-
-	glRasterPos2i(-1, -1);
-
-	glDrawPixels(MIM_W, SHGT, GL_STENCIL_INDEX, GL_UNSIGNED_BYTE, sbuf2[RGB]);
-
-	for (i = 1; i * SHGT < IM_H  ; ++i) {
-		glViewport(0, i*SHGT, MIM_W, SHGT);
-		glMatrixMode(GL_PROJECTION);
-		glLoadIdentity();
-		glMatrixMode(GL_MODELVIEW);
-		glLoadIdentity();
-		glRasterPos2i(-1, -1);
-		glCopyPixels(0, 0, MIM_W, SHGT, GL_STENCIL);
-	}
-
-	
-
-	glColorMask(1, 1, 1, 1);
-	glDepthMask(1);
-	glStencilMask(0);
-	glDisable(GL_STENCIL_TEST);
-}
-
-void RGBCG(int RGB)
-{
-	set_stencil_mask(RGB);
-
-	if (RGB == 1)	glColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_FALSE);
-	if (RGB == 2)	glColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_FALSE);
-	if (RGB == 0)	glColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE);
-	glEnable(GL_STENCIL_TEST);
-
-	if (VideoFlag == 1)
-	{
-		// “Ç‚İ‚ñ‚¾“®‰æƒtƒ@ƒCƒ‹‚ğ•\¦
-		glClear(GL_COLOR_BUFFER_BIT); // add for fbo
-		if (eyeright == 1){
-			glClear(GL_DEPTH_BUFFER_BIT);
-			glStencilFunc(GL_EQUAL, 0x1, 0x1);
-			glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-			glOrtho(0.0, IM_W, 0.0, IM_H, 0.0, 1.0);
-			glViewport(0, 0, IM_W, IM_H);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glEnable(GL_TEXTURE_2D);
-			if (LiverMode) VideoMode->DrawRightImageLiver(IM_W, IM_H);
-			else VideoMode->DrawRightImage(IM_W, IM_H, videoscale);
-		}
-		if (eyeleft == 1){
-			glClear(GL_DEPTH_BUFFER_BIT);
-			glStencilFunc(GL_EQUAL, 0x0, 0x1);
-			glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-			glOrtho(0.0, IM_W, 0.0, IM_H, 0.0, 1.0);
-			glViewport(0, 0, IM_W, IM_H);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glEnable(GL_TEXTURE_2D);
-			if (LiverMode) VideoMode->DrawLeftImageLiver(IM_W, IM_H);
-			else VideoMode->DrawLeftImage(IM_W, IM_H, videoscale);
-		}
-	}
-	else
-	{
-		// Teapot‚ğ•\¦
-		if (eyeright == 1){
-			glClear(GL_DEPTH_BUFFER_BIT);
-			glStencilFunc(GL_EQUAL, 0x1, 0x1);
-			glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-			glViewport(0, 0, IM_W, IM_H);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glFrustum(0.5*(-0.5*WID - eyeposx[0]), 0.5*(0.5*WID - eyeposx[0]), 0.5*(-0.5*HGT - eyeposy[0]), 0.5*(0.5*HGT - eyeposy[0]), 0.5*eyeposz[0], zfar);
-			glMatrixMode(GL_MODELVIEW);
-			glLoadIdentity();
-			gluLookAt(eyeposx[0], eyeposy[0], eyeposz[0], eyeposx[0], eyeposy[0], 0, 0, 1, 0);
-			glTranslatef(0, 0, zsft);
-			glRotatef(theta, 0, 1, 0);
-			glCallList(list);
-		}
-
-		if (eyeleft == 1){
-			glClear(GL_DEPTH_BUFFER_BIT);
-			glStencilFunc(GL_EQUAL, 0x0, 0x1);
-			glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-			glViewport(0, 0, IM_W, IM_H);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glFrustum(0.5*(-0.5*WID - eyeposx[1]), 0.5*(0.5*WID - eyeposx[1]), 0.5*(-0.5*HGT - eyeposy[1]), 0.5*(0.5*HGT - eyeposy[1]), 0.5*eyeposz[1], zfar);
-			glMatrixMode(GL_MODELVIEW);
-			glLoadIdentity();
-			gluLookAt(eyeposx[1], eyeposy[1], eyeposz[1], eyeposx[1], eyeposy[1], 0, 0, 1, 0);
-			glTranslatef(0, 0, zsft);
-			glRotatef(theta, 0, 1, 0);
-			glCallList(list);
-		}
-	}
-	glDisable(GL_STENCIL_TEST);
-}
-
-// ƒOƒ[ƒoƒ‹•Ï”‚É’Ç‰Á
-float columnPitch = 4.0f;     // •¨—ƒoƒŠƒA‚Ìƒsƒbƒ`i‚SƒsƒNƒZƒ‹=3sub~‚S•ªŠ„j
-float subpixelShift = 0.0f;   // ƒLƒƒƒŠƒuƒŒ[ƒVƒ‡ƒ“—p‚Ì…•½ƒVƒtƒg—Ê
-
-// RGBCG_image() ‚Ì‘ã‚í‚è‚Æ‚È‚éV‚µ‚¢ŠÖ”
-// renderInterleavedImage() ‚ğC³
+// RGBCG_image() ï¿½Ì‘ï¿½ï¿½ï¿½Æ‚È‚ï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½
+// renderInterleavedImage() ï¿½ï¿½ï¿½Cï¿½ï¿½
 void renderInterleavedImage() {
-	glUseProgram(shaderProgram); // ‚±‚ÌV‚µ‚¢ƒVƒF[ƒ_[‚ğ“Ç‚İ‚Ş‚æ‚¤‚Éinit()‚à•ÏX
+	glUseProgram(shaderProgram); // ï¿½ï¿½ï¿½ÌVï¿½ï¿½ï¿½ï¿½ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½ï¿½Ç‚İï¿½ï¿½Ş‚æ‚¤ï¿½ï¿½init()ï¿½ï¿½ï¿½ÏX
 	glBindVertexArray(quadVAO);
 
-	// --- ]—ˆ•û®‚Ìƒpƒ‰ƒ[ƒ^‚ğŒvZ ---
-	// calculate_stencil()‚Ì–`“ª‚É‚ ‚Á‚½ŒvZ‚ğ‚±‚±‚É‚Á‚Ä‚­‚é
+	// --- ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìƒpï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ï¿½vï¿½Z ---
+	// calculate_stencil()ï¿½Ì–`ï¿½ï¿½ï¿½É‚ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½vï¿½Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Éï¿½ï¿½ï¿½ï¿½Ä‚ï¿½ï¿½ï¿½
 	int totalShift = MiddleLine - 48 * haba;
 
-	// --- uniform•Ï”‚ğƒVƒF[ƒ_[‚É‘—‚é ---
-	// ƒeƒNƒXƒ`ƒƒ‚Ìİ’è
+	// --- uniformï¿½Ïï¿½ï¿½ï¿½ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½É‘ï¿½ï¿½ï¿½ ---
+	// ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ìİ’ï¿½
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, imageL);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, imageR);
-	glUniform1i(glGetUniformLocation(shaderProgram, "leftTexture"), 0);
-	glUniform1i(glGetUniformLocation(shaderProgram, "rightTexture"), 1);
+	glUniform1i(u_img_leftTexture, 0);
+	glUniform1i(u_img_rightTexture, 1);
 
-	// ]—ˆ•û®‚Ìƒpƒ‰ƒ[ƒ^‚ğ‚·‚×‚Ä‘—‚é
-	glUniform1f(glGetUniformLocation(shaderProgram, "haba"), (float)haba);
-	glUniform1f(glGetUniformLocation(shaderProgram, "totalShift"), (float)totalShift);
-	glUniform1i(glGetUniformLocation(shaderProgram, "timeStep"), kk);
-	glUniform1f(glGetUniformLocation(shaderProgram, "manualShift"), (float)SHIFT);
-
-	// •`‰æ
+	glUniform1f(u_img_haba, (float)haba);
+	glUniform1f(u_img_totalShift, (float)totalShift);
+	glUniform1i(u_img_timeStep, kk);
+	glUniform1f(u_img_manualShift, (float)SHIFT);
+	if (u_img_slantY >= 0)
+		glUniform1f(u_img_slantY, barrierSlantY);
+	//// ï¿½Ç‰ï¿½ï¿½Ï‚İ‚È‚ï¿½
+	//glUniform1f(u_img_middleLinePx, (float)MiddleLine / 3.0f);
+	//glUniform3f(u_img_rgbGain, colorGainR, colorGainG, colorGainB);
+	//glUniform1f(u_img_gamma, colorGamma);
+	//glUniform1f(u_img_crosstalk, crosstalkFactor);
+	//glUniform1i(u_img_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
+	// ï¿½`ï¿½ï¿½
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// Œã•Ğ•t‚¯
+	// ï¿½ï¿½Ğ•tï¿½ï¿½
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
-// “®‰æ—p‚Ì•`‰æŠÖ”
-// renderInterleavedVideo() ‚ğC³
+// ï¿½ï¿½ï¿½ï¿½pï¿½Ì•`ï¿½ï¿½Öï¿½
+// renderInterleavedVideo() ï¿½ï¿½ï¿½Cï¿½ï¿½
 void renderInterleavedVideo() {
 	GLuint videoTexID = VideoMode->getVideoTextureID();
 	if (videoTexID == 0) return;
@@ -778,34 +582,81 @@ void renderInterleavedVideo() {
 	glUseProgram(videoshaderProgram);
 	glBindVertexArray(quadVAO);
 
-	// --- ]—ˆ•û®‚Ìƒpƒ‰ƒ[ƒ^‚ğŒvZ ---
+	// --- ï¿½]ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìƒpï¿½ï¿½ï¿½ï¿½ï¿½[ï¿½^ï¿½ï¿½ï¿½vï¿½Z ---
 	int totalShift = MiddleLine - 48 * haba;
 
-	// --- uniform•Ï”‚ğƒVƒF[ƒ_[‚É‘—‚é ---
-	// ƒeƒNƒXƒ`ƒƒ‚Ìİ’è
+	// --- uniformï¿½Ïï¿½ï¿½ï¿½ï¿½Vï¿½Fï¿½[ï¿½_ï¿½[ï¿½É‘ï¿½ï¿½ï¿½ ---
+	// ï¿½eï¿½Nï¿½Xï¿½`ï¿½ï¿½ï¿½Ìİ’ï¿½
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, videoTexID);
-	glUniform1i(glGetUniformLocation(videoshaderProgram, "sbsTexture"), 0);
+	glUniform1i(u_vid_sbsTexture, 0);
 
-	// ]—ˆ•û®‚Ìƒpƒ‰ƒ[ƒ^‚ğ‚·‚×‚Ä‘—‚é
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "haba"), (float)haba);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "totalShift"), (float)totalShift);
-	glUniform1i(glGetUniformLocation(videoshaderProgram, "timeStep"), kk);
-	glUniform1f(glGetUniformLocation(videoshaderProgram, "manualShift"), (float)SHIFT);
+	glUniform1f(u_vid_haba, (float)haba);
+	glUniform1f(u_vid_totalShift, (float)totalShift);
+	glUniform1i(u_vid_timeStep, kk);
+	glUniform1f(u_vid_manualShift, (float)SHIFT);
 
-	// •`‰æ
+	//// ï¿½Ç‰ï¿½ï¿½Ï‚İ‚È‚ï¿½
+	//glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
+	//glUniform3f(u_vid_rgbGain, colorGainR, colorGainG, colorGainB);
+	//glUniform1f(u_vid_gamma, colorGamma);
+	//glUniform1f(u_vid_crosstalk, crosstalkFactor);
+	//glUniform1i(u_vid_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
+	// ï¿½`ï¿½ï¿½
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// Œã•Ğ•t‚¯
+	// ï¿½ï¿½Ğ•tï¿½ï¿½
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
-int SPEED = 6;
+const double TARGET_HZ = 120.0;
+const auto TARGET_PERIOD = std::chrono::duration<double>(1.0 / TARGET_HZ);
+bool syncClockInitialized = false;
+std::chrono::steady_clock::time_point nextFrameDeadline;
+
 void DTimer(int totalMilliSeconds)
 {
-	if (VideoSwitch) VideoMode->Update(0);
-	glutTimerFunc(SPEED, DTimer, 0);
+	using steady_clock = std::chrono::steady_clock;
+	const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
+	auto now = steady_clock::now();
+
+	if (!syncClockInitialized) {
+		nextFrameDeadline = now;
+		syncClockInitialized = true;
+	}
+
+	bool shouldRender = false;
+	int tickCount = 0;
+	while (now >= nextFrameDeadline) {
+		shouldRender = true;
+		tickCount++;
+		nextFrameDeadline += targetPeriod;
+	}
+
+	if (shouldRender) {
+		if (VideoSwitch) VideoMode->Update(0);
+		if (arduinoSerial.is_open()) {
+			char light_command = TIME_DIV_0;
+			switch (kk) {
+			case 0: light_command = TIME_DIV_0; break;
+			case 3: light_command = TIME_DIV_1; break;
+			case 2: light_command = TIME_DIV_2; break;
+			case 1: light_command = TIME_DIV_3; break;
+			}
+			SendArduinoCommand(light_command);
+		}
+		glutPostRedisplay();
+		if (running == 1 && tickCount > 0) {
+			kk = (kk + (tickCount % 4)) % 4;
+		}
+	}
+
+	auto remain = nextFrameDeadline - steady_clock::now();
+	auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
+	unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
+	glutTimerFunc(nextCallMs, DTimer, 0);
 }
 
 int frame = 0;
@@ -813,114 +664,49 @@ bool GetPic = false;
 int prt = 0;
 
 
-void disp(void){
+void disp(void) {
 	int i, e;
 	glDrawBuffer(GL_BACK);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-	if (flag == 1){
+	if (flag == 1) {
+
 
 		glDisable(GL_TEXTURE_2D);
 
-		if (mrk == 1){
-			// “®‰æƒ‚[ƒh
+		if (mrk == 1) {
+			// ï¿½ï¿½ï¿½æƒ‚ï¿½[ï¿½h
 
-			// FBO‚Ö‚Ì•`‰æ
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
+
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
-			renderInterleavedVideo(); // šV‚µ‚¢“®‰æ•`‰æŠÖ”‚ğŒÄ‚Ño‚·
-
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+			renderInterleavedVideo(); // ï¿½ï¿½ï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½`ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½Ä‚Ñoï¿½ï¿½
+		//	glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
-			/////ƒeƒNƒXƒ`ƒƒ‚ğ“\‚Á‚½A‘å‚«‚¢”Â‚ğ•`‰æ
-			glEnable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, Tex_Name);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-			glPushMatrix();
-			glViewport(0, 0, 1920, 1080);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glMatrixMode(GL_MODELVIEW);
-			glLoadIdentity();
-
-			glOrtho(0, 1920, 0, 1080, -1, 1);
-
-			glBegin(GL_QUADS);
-			glTexCoord2d(0, 0); glVertex2d(0, 0);
-			glTexCoord2d(0, 1); glVertex2d(0, 1080);
-			glTexCoord2d(1, 1); glVertex2d(1920 + 1008, 1080);
-			glTexCoord2d(1, 0); glVertex2d(1920 + 1008, 0);
-			glEnd();
-			glPopMatrix();
-			glDisable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, 0);
-			
 		}
-		else{
-			// ‰æ‘œƒ‚[ƒh
-			// FBO‚Ö‚Ì•`‰æ
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, FrameBuffer);
-			// •ÏXŒãFV‚µ‚¢ŠÖ”‚ğˆê“xŒÄ‚Ño‚·‚¾‚¯
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBO‚ğƒNƒŠƒA
+		else {
+			// ï¿½æ‘œï¿½ï¿½ï¿½[ï¿½h
+
+			// ï¿½ÏXï¿½ï¿½Fï¿½Vï¿½ï¿½ï¿½ï¿½ï¿½Öï¿½ï¿½ï¿½ï¿½ï¿½xï¿½Ä‚Ñoï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBOï¿½ï¿½ï¿½Nï¿½ï¿½ï¿½A
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
-
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-			glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+			//	glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-			/////ƒeƒNƒXƒ`ƒƒ‚ğ“\‚Á‚½A‘å‚«‚¢”Â‚ğ•`‰æ
-			glEnable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, Tex_Name);
-			glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-			glPushMatrix();
-			glViewport(0, 0, 1920, 1080);
-			glMatrixMode(GL_PROJECTION);
-			glLoadIdentity();
-			glMatrixMode(GL_MODELVIEW);
-			glLoadIdentity();
-
-			glOrtho(0, 1920, 0, 1080, -1, 1);
-
-			glBegin(GL_QUADS);
-			glTexCoord2d(0, 0); glVertex2d(0, 0);
-			glTexCoord2d(0, 1); glVertex2d(0, 1080);
-			glTexCoord2d(1, 1); glVertex2d(1920 + 1008, 1080);
-			glTexCoord2d(1, 0); glVertex2d(1920 + 1008, 0);
-			glEnd();
-			glPopMatrix();
-			glDisable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 
-		if (running){
-			kk++;
-			if (kk == 4)kk = 0;
-			if (arduinoSerial.is_open()) {
-				char light_command;
-				switch (kk) {
-				case 0:light_command = LIGHT_CON_0; break;
-				case 1:light_command = LIGHT_CON_1; break;
-				case 2:light_command = LIGHT_CON_2; break;
-				case 3:light_command = LIGHT_CON_3; break;
-				}
-				boost::asio::write(arduinoSerial, boost::asio::buffer(&light_command, 1));
-			}
-		}
+		// kkï¿½ï¿½DTimer()ï¿½ï¿½ï¿½ï¿½120Hzï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½Vï¿½ï¿½ï¿½ï¿½
 	}
 
-	else{
+	else {
 		sprintf(filePath, "./images/IDW/%03dl.ppm", img);
 		ppm_reader(filePath, &image_texture[0][0][0][0]);
-		sprintf(filePath, "./images/IDW/%03dr.ppm", img);//–{—ˆ‚Ír
+		sprintf(filePath, "./images/IDW/%03dr.ppm", img);//ï¿½{ï¿½ï¿½ï¿½ï¿½r
 		ppm_reader(filePath, &image_texture[1][0][0][0]);
 
 		glEnable(GL_TEXTURE_2D);
@@ -943,11 +729,16 @@ void disp(void){
 	glutSwapBuffers();
 }
 
-static void KeyEvent(unsigned char key, int x, int y){
-	switch (key){
+static void KeyEvent(unsigned char key, int x, int y) {
+	switch (key) {
 	case 27:
 
 		while (!VideoMode->video_flag) VideoMode->dispose();
+		if (arduinoSerial.is_open()) {
+			SendArduinoCommand(DISABLE_TIMEDIVISION);
+			SendArduinoCommand(LIGHT_EXIT);
+		}
+		timeEndPeriod(1);
 		exit(0);
 		break;
 	case 'Z':
@@ -982,8 +773,16 @@ static void KeyEvent(unsigned char key, int x, int y){
 		glutDisplayFunc(disp);
 		break;
 	case 't':
-		if (running) running = 0;
-		else running = 1;
+		if (running) {
+			running = 0;
+			SendArduinoCommand(DISABLE_TIMEDIVISION);
+		}
+		else {
+			running = 1;
+			kk = 0;
+			SendArduinoCommand(RESET_SYNC);
+			SendArduinoCommand(ENABLE_TIMEDIVISION);
+		}
 		glutDisplayFunc(disp);
 		break;
 	case 'o':
@@ -991,11 +790,11 @@ static void KeyEvent(unsigned char key, int x, int y){
 		glutDisplayFunc(disp);
 		break;
 	case 'h':
-		if (ht == 0){
+		if (ht == 0) {
 			Sleep(100);
 			cali_flag = 1;
 		}
-		else{
+		else {
 			Sleep(100);
 			ht = 0;
 			//		haba=haba_first;
@@ -1015,56 +814,56 @@ static void KeyEvent(unsigned char key, int x, int y){
 		VideoMode->SetSpeed(200);
 		break;
 	case'z':
-		if (random == 0){
+		if (random == 0) {
 			mode = 0;
 			printf("mode : PP\n");
 		}
-		else if (random == 1){
+		else if (random == 1) {
 			mode = 0;
 			printf("mode : PP\n");
 		}
-		else if (random == 2){
+		else if (random == 2) {
 			mode = 2;
 		}
-		else{
+		else {
 			mode = 1;
 			printf("mode : SP\n");
 		}
 		glutDisplayFunc(disp);
 		break;
 	case'x':
-		if (random == 0){
+		if (random == 0) {
 			mode = 1;
 			printf("mode : SP\n");
 		}
-		else if (random == 1){
+		else if (random == 1) {
 			mode = 2;
 			printf("mode : SS\n");
 		}
-		else if (random == 2){
+		else if (random == 2) {
 			mode = 0;
 			printf("mode : PP\n");
 		}
-		else{
+		else {
 			mode = 2;
 			printf("mode : SS\n");
 		}
 		glutDisplayFunc(disp);
 		break;
 	case'c':
-		if (random == 0){
+		if (random == 0) {
 			mode = 2;
 			printf("mode : SS\n");
 		}
-		else if (random == 1){
+		else if (random == 1) {
 			mode = 1;
 			printf("mode : SP\n");
 		}
-		else if (random == 2){
+		else if (random == 2) {
 			mode = 1;
 			printf("mode : SP\n");
 		}
-		else{
+		else {
 			mode = 0;
 			printf("mode : PP\n");
 		}
@@ -1077,32 +876,15 @@ static void KeyEvent(unsigned char key, int x, int y){
 		LiverMode = false;
 		break;
 	case '1':
-		if (mrk == 1)
-		{
-			VideoFlag = 0;
-			flag = 0;
-		}
-		else
-		{
-			img = 2;
-			random = 0;
-			flag = 0;
-		}
+		img = 2;
+		random = 0;
+		flag = 0;
 		glutDisplayFunc(disp);
 		break;
 	case '2':
-		if (mrk == 1)
-		{
-			VideoFlag = 1;
-			videoscale = DefaultScale;
-			flag = 0;
-		}
-		else
-		{
-			img = 3;
-			random = 1;
-			flag = 0;
-		}
+		img = 3;
+		random = 1;
+		flag = 0;
 		glutDisplayFunc(disp);
 		break;
 	case '3':
@@ -1170,38 +952,28 @@ static void KeyEvent(unsigned char key, int x, int y){
 		eyeleft = 0;
 		glutDisplayFunc(disp);
 		break;
-	//case '+':
-	//	videoscale += 0.001;
-	//	printf("%f\n", videoscale);
-	//	glutDisplayFunc(disp);
-	//	break;
-	//case '-':
-	//	videoscale -= 0.001;
-	//	printf("%f\n", videoscale);
-	//	glutDisplayFunc(disp);
-	//	break;
 	case 'S':
 		VideoMode->Mode3D = !VideoMode->Mode3D;
 		glutDisplayFunc(disp);
 		break;
-	/*case 'p':
-		VideoMode->printflag = false;
-		glutDisplayFunc(disp);
-		break;*/
+		/*case 'p':
+			VideoMode->printflag = false;
+			glutDisplayFunc(disp);
+			break;*/
 	case 'R':
 		ReserveLR = !ReserveLR;
 		if (ReserveLR) printf("RL\n");
 		else printf("LR\n");
 		glutDisplayFunc(disp);
 		break;
-	case 'f':
-		zsft += 5;
-		glutDisplayFunc(disp);
-		break;
-	case 'F':
-		zsft -= 5;
-		glutDisplayFunc(disp);
-		break;
+		//case 'f':
+		//	zsft += 5;
+		//	glutDisplayFunc(disp);
+		//	break;
+		//case 'F':
+		//	zsft -= 5;
+		//	glutDisplayFunc(disp);
+		//	break;
 	case '[':
 		haba++;
 		//printf("%d\n", haba);
@@ -1226,40 +998,40 @@ static void KeyEvent(unsigned char key, int x, int y){
 	case'D':
 		habat += 1;
 		break;
-		// KeyEvent() ŠÖ”‚ÉƒL[‚ğ’Ç‰Á
-	case 'p': // ƒsƒbƒ`‚ğL‚°‚é
-		columnPitch += 0.01f;
-		printf("Column Pitch: %f\n", columnPitch);
+		// KeyEvent() ï¿½Öï¿½ï¿½ÉƒLï¿½[ï¿½ï¿½Ç‰ï¿½
+	case 'f':
+		barrierSlantY -= 0.02f;
+		if (barrierSlantY < 0.1f) barrierSlantY = 0.1f;
+		printf("barrierSlantY = %.3f, angle = %.3f deg\n",
+			barrierSlantY,
+			atan(-3.0f / barrierSlantY) * 180.0f / 3.14159265f);
+		glutPostRedisplay();
 		break;
-	case ';': // ƒsƒbƒ`‚ğ‹·‚ß‚é
-		columnPitch -= 0.01f;
-		printf("Column Pitch: %f\n", columnPitch);
-		break;
-	case '\'': // ‰E‚ÉƒVƒtƒg
-		subpixelShift += 2.1f;
-		printf("Subpixel Shift: %f\n", subpixelShift);
-		break;
-	case '/': // ¶‚ÉƒVƒtƒg
-		subpixelShift -= 0.1f;
-		printf("Subpixel Shift: %f\n", subpixelShift);
+
+	case 'F':
+		barrierSlantY += 0.02f;
+		printf("barrierSlantY = %.3f, angle = %.3f deg\n",
+			barrierSlantY,
+			atan(-3.0f / barrierSlantY) * 180.0f / 3.14159265f);
+		glutPostRedisplay();
 		break;
 
 	}
 }
 static void KeyUp(unsigned
-	char key, int x, int y){
-	switch (key){
+	char key, int x, int y) {
+	switch (key) {
 	case 's':
 		VideoMode->SetSpeed(9000);
 		break;
 	}
 }
-static void KeySpecialEvent(int key, int x, int y){
-	if (key == GLUT_KEY_LEFT){
+static void KeySpecialEvent(int key, int x, int y) {
+	if (key == GLUT_KEY_LEFT) {
 		theta = (int)(theta + 1) % 360;
 		glutDisplayFunc(disp);
 	}
-	if (key == GLUT_KEY_RIGHT){
+	if (key == GLUT_KEY_RIGHT) {
 		theta = (int)(theta - 1 + 360) % 360;
 		glutDisplayFunc(disp);
 	}
@@ -1268,12 +1040,18 @@ static void KeySpecialEvent(int key, int x, int y){
 
 
 
-int main(int argc, char ** argv){
+int main(int argc, char ** argv) {
+
+	MMRESULT timerResult = timeBeginPeriod(1);
+	if (timerResult != TIMERR_NOERROR) {
+		printf("[WARN] Failed to set 1ms timer resolution.\n");
+	}
 
 
-
-	arduinoSerial.open("COM3"); // Arduino‚Ìƒ|[ƒg–¼‚É‡‚í‚¹‚Ä•ÏX
-	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(9600));
+	arduinoSerial.open("COM3"); // Arduinoï¿½Ìƒ|ï¿½[ï¿½gï¿½ï¿½ï¿½Éï¿½ï¿½í‚¹ï¿½Ä•ÏXCOm1ï¿½Íƒfï¿½oï¿½bï¿½Oï¿½p
+	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
+	SendArduinoCommand(RESET_SYNC);
+	SendArduinoCommand(ENABLE_TIMEDIVISION);
 	TCPClient client("127.0.0.1", 30000);
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
@@ -1288,16 +1066,16 @@ int main(int argc, char ** argv){
 
 	init();
 	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-	Receive(client, [](boost::system::error_code e, size_t){ std::cout << e.message() << std::endl; });
-	List();
+	Receive(client, [](boost::system::error_code e, size_t) { std::cout << e.message() << std::endl; });
 	glutDisplayFunc(disp);
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);
 	glutSpecialFunc(KeySpecialEvent);
-	glutIdleFunc(disp);
+	//glutIdleFunc(disp);
 
 	glutMainLoop();
 	client.Close();
+	timeEndPeriod(1);
 
 	glDeleteTextures(1, &imageL);
 	glDeleteTextures(1, &imageR);
