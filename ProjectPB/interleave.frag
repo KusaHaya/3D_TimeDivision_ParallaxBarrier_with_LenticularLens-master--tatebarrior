@@ -28,19 +28,16 @@ float positiveMod(float x, float m)
 
 bool shouldShowLeftEye(float Wsub, float Ypx)
 {
+
+    float slantedCoord = Wsub + slantY * Ypx;
     float middleLineSub = middleLinePx * 3.0;
 
-    // middleLine•â³
-    float distSub = abs(Wsub - middleLineSub);
+    float distSub = abs(slantedCoord - middleLineSub);
     float skipCount = floor(distSub / haba);
-    float dir = (Wsub >= middleLineSub) ? -1.0 : 1.0;
+    float dir = (slantedCoord >= middleLineSub) ? -1.0 : 1.0;
     float skipSub = dir * skipCount;
 
-    // ‰EŒ¨‰º‚ª‚è
-    // slantY = 1.0 ‚Ì‚Æ‚« tan^-1(-3)
-    float slantedCoord = Wsub + slantY * Ypx;
-
-    float divTerm = floor((Wsub - totalShift) / haba);
+    float divTerm = floor((slantedCoord - totalShift) / haba);
 
     float value = slantedCoord
                 - divTerm
