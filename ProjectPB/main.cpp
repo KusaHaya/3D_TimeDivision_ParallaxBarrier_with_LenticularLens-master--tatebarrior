@@ -36,7 +36,7 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define IM_W 1920 // image width
 #define IM_H 1080 // image height
 
-#define haba_first 750 // default 500
+#define haba_first 330 // default 500
 #define WID 528
 #define HGT 297
 
@@ -46,6 +46,7 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define ENABLE_TIMEDIVISION 12
 #define DISABLE_TIMEDIVISION 13
 #define RESET_SYNC 20
+#define NEXT_TIMEDIVISION 21
 
 #define LIGHT_EXIT 110
 
@@ -58,7 +59,7 @@ extern "C" FILE * __cdecl __iob_func(void)
 
 // �Î~��Ɠ���̃p�^�[���̊ԂŐ�����ʒu���̕␳�i�e�N�X�`���}�b�s���O�ƃX�e���V���}�X�N�j
 // �p�l�����Ƃɐݒ肷��K�v����
-int SHIFT = 3;
+int SHIFT = 1;
 
 #define SIM_W 1920 // calibration image width
 #define SIM_H 1080 // calibration image height
@@ -495,7 +496,6 @@ void init(void) {
 	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
 	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
 	u_vid_slantY = glGetUniformLocation(videoshaderProgram, "slantY");
-
 	/*u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
 	u_vid_rgbGain = glGetUniformLocation(videoshaderProgram, "rgbGain");
 	u_vid_gamma = glGetUniformLocation(videoshaderProgram, "gammaValue");
@@ -578,44 +578,44 @@ void renderInterleavedImage() {
 
 // ����p�̕`��֐�
 // renderInterleavedVideo() ���C��
-void renderInterleavedVideo()
-{
-    GLuint videoTexID = VideoMode->getVideoTextureID();
-    if (videoTexID == 0) return;
+void renderInterleavedVideo() {
+	GLuint videoTexID = VideoMode->getVideoTextureID();
+	if (videoTexID == 0) return;
 
-    glUseProgram(videoshaderProgram);
-    glBindVertexArray(quadVAO);
+	glUseProgram(videoshaderProgram);
+	glBindVertexArray(quadVAO);
 
-    // 全画面quadなので深度テストは不要
-    glDisable(GL_DEPTH_TEST);
+	// --- �]�������̃p�����[�^���v�Z ---
+	int totalShift = MiddleLine - 48 * haba;
 
-    // 旧方式と同じ totalShift
-    int totalShift = MiddleLine - 48 * haba;
+	// --- uniform�ϐ����V�F�[�_�[�ɑ��� ---
+	// �e�N�X�`���̐ݒ�
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, videoTexID);
+	glUniform1i(u_vid_sbsTexture, 0);
 
-    // SBS動画テクスチャを texture unit 0 に割り当て
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, videoTexID);
-    glUniform1i(u_vid_sbsTexture, 0);
+	glUniform1f(u_vid_haba, (float)haba);
+	glUniform1f(u_vid_totalShift, (float)totalShift);
+	glUniform1i(u_vid_timeStep, kk);
+	glUniform1f(u_vid_manualShift, (float)SHIFT);
 
-    // 旧方式対応パラメータ
-    glUniform1f(u_vid_haba, (float)haba);
-    glUniform1f(u_vid_totalShift, (float)totalShift);
-    glUniform1i(u_vid_timeStep, kk);
-    glUniform1f(u_vid_manualShift, (float)SHIFT);
+	// 旧方式の W + H 相当
+	if (u_vid_slantY >= 0)
+		glUniform1f(u_vid_slantY, barrierSlantY);
 
-    // 旧方式の W + H 相当
-    if (u_vid_slantY >= 0)
-        glUniform1f(u_vid_slantY, barrierSlantY);
+	//// �ǉ��ς݂Ȃ�
+	//glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
+	//glUniform3f(u_vid_rgbGain, colorGainR, colorGainG, colorGainB);
+	//glUniform1f(u_vid_gamma, colorGamma);
+	//glUniform1f(u_vid_crosstalk, crosstalkFactor);
+	//glUniform1i(u_vid_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
+	// �`��
+	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-
-    glBindVertexArray(0);
-    glUseProgram(0);
-
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    glEnable(GL_DEPTH_TEST);
+	// ��Еt��
+	glUseProgram(0);
+	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(0);
 }
 
 const double TARGET_HZ = 120.0;
@@ -645,16 +645,8 @@ void DTimer(int totalMilliSeconds)
 	if (shouldRender) {
 		if (VideoSwitch) VideoMode->Update(0);
 		if (arduinoSerial.is_open()) {
-			if (running == 0 && kk == 0) {
+			if ( kk == 0) {
 				SendArduinoCommand(TIME_DIV_0);
-			}
-		//	char light_command = TIME_DIV_0;
-		//	switch (kk) {
-		//	case 0: light_command = TIME_DIV_0; break;
-		//	case 3: light_command = TIME_DIV_1; break;
-		//	case 2: light_command = TIME_DIV_2; break;
-		//	case 1: light_command = TIME_DIV_3; break;
-		//	}
 			}
 		}
 		glutPostRedisplay();
@@ -932,14 +924,22 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		break;
 	case 'm':
 		mrk = 1;
-		flag = 0;
+		flag = 1;
+
 		if (!VideoSwitch)
 		{
 			VideoMode->Initialize();
+
+			// Initialize直後に少し待つ
+			Sleep(100);
+
 			VideoMode->SetSpeed(16000);
+
+			// ここで初めて動画更新を許可
 			VideoSwitch = true;
 		}
-		glutDisplayFunc(disp);
+
+		glutPostRedisplay();
 		break;
 	case 'M':
 		mrk = 0;
@@ -1066,10 +1066,6 @@ int main(int argc, char ** argv) {
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(IM_W, IM_H);
-
-	glutInitContextVersion(3, 3);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
-	glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_STENCIL | GLUT_STEREO);
 	glutCreateWindow("Test");

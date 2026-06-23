@@ -26,6 +26,7 @@
 #define TIME_DIV_2 202
 #define TIME_DIV_3 203
 int PIN_PAST = -1;
+int cnt = 0;
 const int offset = 1500;
 
 // 8出力用に配列サイズとピン番号を変更
@@ -75,12 +76,13 @@ void onDelaySimultaneous(int PIN_TOP, int PIN_BOTTOM)
 
 
   // パルス幅の分だけ待機 (周期は変わらない)
-  delayMicroseconds(pluse_width_tb  * 1000 - 4750 );
+  delayMicroseconds(pluse_width_tb  * 1000 - 4800 );
   // 2つのピンをLOWにする
   digitalWrite(PIN_TOP, LOW);
-    //delayMicroseconds(offset);
+  // delayMicroseconds(500);
     PIN_PAST = PIN_BOTTOM;
   digitalWrite(PIN_BOTTOM, LOW);
+  delayMicroseconds(200);
 }
 
 void runOneTimeDivisionCycle()
@@ -93,13 +95,14 @@ void runOneTimeDivisionCycle()
     cnt = phase;
 
     onDelaySimultaneous(
+
       OUTPUT_PINS[phase + 4],
       OUTPUT_PINS[phase]
     );
   }
 }
 
-int cnt = 0;
+
 int prev = 0;
 bool running = true;
 
@@ -146,7 +149,6 @@ void loop()
 
     // --- ここからが本命の4時分割ペア制御 ---
     case TIME_DIV_0:
-    case TIME_DIV_0:
     {
     if (running) {
         turnAllLightsOff();
@@ -177,6 +179,7 @@ void loop()
         onDelaySimultaneous(OUTPUT_PINS[cnt + 4], OUTPUT_PINS[cnt]);
     }
     break;
+    }
 
   
     // --- 制御ここまで ---
