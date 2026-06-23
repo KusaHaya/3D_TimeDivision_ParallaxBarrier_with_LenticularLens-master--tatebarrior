@@ -1,0 +1,193 @@
+#define REFRESH_RATE 120
+#define HIGH_RATE 100
+
+#define CONNECTION_BEGIN 10
+#define CONNECTION_END 11
+#define NEXT_FRAME 1
+#define ENABLE_TIMEDIVISION 12
+#define DISABLE_TIMEDIVISION 13          
+
+// 8出力用 (個別に光らせたい場合：100~107)
+#define LIGHT_CON_0 100
+#define LIGHT_CON_1 101
+#define LIGHT_CON_2 102
+#define LIGHT_CON_3 103
+#define LIGHT_CON_4 104
+#define LIGHT_CON_5 105
+#define LIGHT_CON_6 106
+#define LIGHT_CON_7 107
+#define LIGHT_EXIT 110
+
+#define NEXT_TIMEDIVISION 21
+
+// 4時分割 同時制御用コマンド (新規追加)
+#define TIME_DIV_0 200
+#define TIME_DIV_1 201
+#define TIME_DIV_2 202
+#define TIME_DIV_3 203
+int PIN_PAST = -1;
+const int offset = 1500;
+
+// 8出力用に配列サイズとピン番号を変更
+// !!! ピン番号はご自身の環境に合わせてください !!!
+// (例： 9-12が上部、2-5が下部)
+const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
+
+const float pluse_width = 1000.0 / REFRESH_RATE - offset / 1000;
+const float pluse_width_tb = 1000.0 / REFRESH_RATE ;
+const float delay_time = (100.0 - HIGH_RATE) * pluse_width / 100 / 2;
+
+void setup()
+{
+  Serial.begin(115200);
+  for (int i = 0; i < 8; i++)
+  {
+    pinMode(OUTPUT_PINS[i], OUTPUT);
+  }
+  delay(10);
+  for (int i = 0; i < 8; i++)
+  {
+    digitalWrite(OUTPUT_PINS[i], HIGH);
+  }
+}
+
+// 既存：1ピン制御用
+void onDelay(int PIN)
+{
+  delayMicroseconds(offset);
+  digitalWrite(PIN, HIGH);
+  delayMicroseconds(pluse_width * HIGH_RATE / 100 * 1000);
+  digitalWrite(PIN, LOW);
+}
+
+// 新規追加：上下ペア同時制御用
+void onDelaySimultaneous(int PIN_TOP, int PIN_BOTTOM)
+{
+    if (PIN_PAST >= 0) {
+    digitalWrite(PIN_PAST, HIGH);
+  }
+  digitalWrite(PIN_PAST, HIGH);
+  delayMicroseconds(2500);
+  digitalWrite(PIN_TOP, HIGH);
+  delayMicroseconds(2000);
+  digitalWrite(PIN_PAST, LOW);
+  digitalWrite(PIN_BOTTOM, HIGH);
+
+
+  // パルス幅の分だけ待機 (周期は変わらない)
+  delayMicroseconds(pluse_width_tb  * 1000 - 4750 );
+  // 2つのピンをLOWにする
+  digitalWrite(PIN_TOP, LOW);
+    //delayMicroseconds(offset);
+    PIN_PAST = PIN_BOTTOM;
+  digitalWrite(PIN_BOTTOM, LOW);
+}
+
+void runOneTimeDivisionCycle()
+{
+  // 旧PC送信順と同じ: 0 → 3 → 2 → 1
+  const int phaseOrder[4] = {0, 3, 2, 1};
+
+  for (int i = 0; i < 4; i++) {
+    int phase = phaseOrder[i];
+    cnt = phase;
+
+    onDelaySimultaneous(
+      OUTPUT_PINS[phase + 4],
+      OUTPUT_PINS[phase]
+    );
+  }
+}
+
+int cnt = 0;
+int prev = 0;
+bool running = true;
+
+void loop()
+{
+  if (Serial.available() > 0)
+  {
+    int incomingByte = Serial.read();
+
+    auto turnAllLightsOff = []() {
+      for (int i = 0; i < 8; i++) {
+        digitalWrite(OUTPUT_PINS[i], LOW);
+      }
+    };
+
+    switch (incomingByte)
+    {
+    case CONNECTION_BEGIN:
+      for (int i = 0; i < 8; i++) {
+        if (cnt != i) { digitalWrite(OUTPUT_PINS[i], LOW); }
+      }
+      break;
+    case LIGHT_EXIT:
+      for (int i = 0; i < 8; i++) {
+        digitalWrite(OUTPUT_PINS[i], HIGH);
+      }
+      break;
+
+    // (オプション) 8ピン個別テスト用
+    case LIGHT_CON_0:
+    case LIGHT_CON_1:
+    case LIGHT_CON_2:
+    case LIGHT_CON_3:
+    case LIGHT_CON_4:
+    case LIGHT_CON_5:
+    case LIGHT_CON_6:
+    case LIGHT_CON_7:
+    //  int received_kk = incomingByte - LIGHT_CON_0;
+    //  if (received_kk >= 0 && received_kk < 8) {
+    //    turnAllLightsOff();
+    //    onDelay(OUTPUT_PINS[received_kk]);
+   //   }
+      break;
+
+    // --- ここからが本命の4時分割ペア制御 ---
+    case TIME_DIV_0:
+    case TIME_DIV_0:
+    {
+    if (running) {
+        turnAllLightsOff();
+        runOneTimeDivisionCycle();
+    }
+    break;
+    }
+    case TIME_DIV_1:
+    case TIME_DIV_2:
+    case TIME_DIV_3:
+    {
+    int received_kk = incomingByte - TIME_DIV_0;
+    if (received_kk >= 0 && received_kk < 4) {
+        cnt = received_kk;
+        if (running) {
+        turnAllLightsOff();
+        onDelaySimultaneous(OUTPUT_PINS[cnt + 4], OUTPUT_PINS[cnt]);
+        }
+    }
+    break;
+    }
+
+    case NEXT_TIMEDIVISION:
+    {
+    if (running) {
+        cnt = (cnt + 3) & 3;  // 以前の相順 0→3→2→1 を維持
+        turnAllLightsOff();
+        onDelaySimultaneous(OUTPUT_PINS[cnt + 4], OUTPUT_PINS[cnt]);
+    }
+    break;
+
+  
+    // --- 制御ここまで ---
+
+    case ENABLE_TIMEDIVISION:
+      running = true;
+      break;
+    case DISABLE_TIMEDIVISION:
+      running = false;
+      digitalWrite(OUTPUT_PINS[cnt], HIGH);
+      break;
+    }
+  }
+}

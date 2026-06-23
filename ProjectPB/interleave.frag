@@ -2,22 +2,22 @@
 
 in vec2 UV;
 
-// C++から受け取るuniform変数
+// C++?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｯ趣ｿｽ?ｿｽuniform?ｿｽﾏ撰ｿｽ
 uniform sampler2D leftTexture;
 uniform sampler2D rightTexture;
 
-uniform float haba;         // 視聴距離(Z)から計算された値（サブピクセル幅）
-uniform float totalShift;   // 従来方式の基準シフト
-uniform int   timeStep;     // 時分割のステップ (kk)
-uniform float manualShift;  // 手動調整用のシフト (SHIFT)
-uniform vec3  rgbGain;      // RGBゲイン補正
-uniform float gammaValue;   // ガンマ補正
-uniform float crosstalk;    // クロストーク補償量
-uniform int   enableColorCorrection; // 1:有効, 0:無効
-uniform float middleLinePx; // ピクセル単位（C++側で MiddleLine/3 を渡す）
+uniform float haba;         // ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ(Z)?ｿｽ?ｿｽ?ｿｽ?ｿｽv?ｿｽZ?ｿｽ?ｿｽ?ｿｽ黷ｽ?ｿｽl?ｿｽi?ｿｽT?ｿｽu?ｿｽs?ｿｽN?ｿｽZ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽj
+uniform float totalShift;   // ?ｿｽ]?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽﾌ基準?ｿｽV?ｿｽt?ｿｽg
+uniform int   timeStep;     // ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽﾌス?ｿｽe?ｿｽb?ｿｽv (kk)
+uniform float manualShift;  // ?ｿｽ闢ｮ?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽp?ｿｽﾌシ?ｿｽt?ｿｽg (SHIFT)
+uniform vec3  rgbGain;      // RGB?ｿｽQ?ｿｽC?ｿｽ?ｿｽ?ｿｽ竦ｳ
+uniform float gammaValue;   // ?ｿｽK?ｿｽ?ｿｽ?ｿｽ}?ｿｽ竦ｳ
+uniform float crosstalk;    // ?ｿｽN?ｿｽ?ｿｽ?ｿｽX?ｿｽg?ｿｽ[?ｿｽN?ｿｽ竢橸ｿｽ?ｿｽ
+uniform int   enableColorCorrection; // 1:?ｿｽL?ｿｽ?ｿｽ, 0:?ｿｽ?ｿｽ?ｿｽ?ｿｽ
+uniform float middleLinePx; // ?ｿｽs?ｿｽN?ｿｽZ?ｿｽ?ｿｽ?ｿｽP?ｿｽﾊ（C++?ｿｽ?ｿｽ?ｿｽ?ｿｽ MiddleLine/3 ?ｿｽ?ｿｽn?ｿｽ?ｿｽ?ｿｽj
 
-// 追加: 角度調整用
-uniform float slantY;       // 1.0 で tan^-1(-3)
+// ?ｿｽﾇ会ｿｽ: ?ｿｽp?ｿｽx?ｿｽ?ｿｽ?ｿｽ?ｿｽ?ｿｽp
+uniform float slantY;       // 1.0 ?ｿｽ?ｿｽ tan^-1(-3)
 
 out vec4 color;
 
@@ -28,27 +28,29 @@ float positiveMod(float x, float m)
 
 bool shouldShowLeftEye(float Wsub, float Ypx)
 {
-
+    // 旧方式の W + H に相当
     float slantedCoord = Wsub + slantY * Ypx;
+
+    // 旧方式:
+    // totalShift = MiddleLine - 48 * haba;
     float middleLineSub = middleLinePx * 3.0;
+    float totalShiftSub = middleLineSub - 48.0 * haba;
 
-    float distSub = abs(slantedCoord - middleLineSub);
-    float skipCount = floor(distSub / haba);
-    float dir = (slantedCoord >= middleLineSub) ? -1.0 : 1.0;
-    float skipSub = dir * skipCount;
+    // 旧方式:
+    // (W - totalShift) / haba
+    float correction = floor((slantedCoord - totalShiftSub) / haba);
 
-    float divTerm = floor((slantedCoord - totalShift) / haba);
-
+    // 旧方式:
+    // ((W + H) - correction) + 2 * kk + SHIFT
     float value = slantedCoord
-                - divTerm
+                - correction
                 + 2.0 * float(timeStep)
-                + manualShift
-                + skipSub;
+                + manualShift;
 
-    // 最初の2相(0,1)を右、後ろの2相(2,3)を左
+    // 旧方式では % 8 < 4 がステンシル1 = 右目
+    // shaderでは true を左目にしているので >= 4
     return positiveMod(value, 8.0) >= 4.0;
 }
-
 void main()
 {
     vec4 leftColor = texture(leftTexture, UV);

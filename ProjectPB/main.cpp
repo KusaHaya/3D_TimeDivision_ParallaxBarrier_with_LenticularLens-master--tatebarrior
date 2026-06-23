@@ -494,6 +494,8 @@ void init(void) {
 	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
 	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
 	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
+	u_vid_slantY = glGetUniformLocation(videoshaderProgram, "slantY");
+
 	/*u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
 	u_vid_rgbGain = glGetUniformLocation(videoshaderProgram, "rgbGain");
 	u_vid_gamma = glGetUniformLocation(videoshaderProgram, "gammaValue");
@@ -520,6 +522,7 @@ void init(void) {
 	warnIfMissing("totalShift", u_vid_totalShift);
 	warnIfMissing("timeStep", u_vid_timeStep);
 	warnIfMissing("manualShift", u_vid_manualShift);
+	warnIfMissing("video slantY", u_vid_slantY);
 	/*warnIfMissing("middleLinePx", u_vid_middleLinePx);
 	warnIfMissing("rgbGain", u_vid_rgbGain);
 	warnIfMissing("gammaValue", u_vid_gamma);
@@ -575,40 +578,44 @@ void renderInterleavedImage() {
 
 // ����p�̕`��֐�
 // renderInterleavedVideo() ���C��
-void renderInterleavedVideo() {
-	GLuint videoTexID = VideoMode->getVideoTextureID();
-	if (videoTexID == 0) return;
+void renderInterleavedVideo()
+{
+    GLuint videoTexID = VideoMode->getVideoTextureID();
+    if (videoTexID == 0) return;
 
-	glUseProgram(videoshaderProgram);
-	glBindVertexArray(quadVAO);
+    glUseProgram(videoshaderProgram);
+    glBindVertexArray(quadVAO);
 
-	// --- �]�������̃p�����[�^���v�Z ---
-	int totalShift = MiddleLine - 48 * haba;
+    // 全画面quadなので深度テストは不要
+    glDisable(GL_DEPTH_TEST);
 
-	// --- uniform�ϐ����V�F�[�_�[�ɑ��� ---
-	// �e�N�X�`���̐ݒ�
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, videoTexID);
-	glUniform1i(u_vid_sbsTexture, 0);
+    // 旧方式と同じ totalShift
+    int totalShift = MiddleLine - 48 * haba;
 
-	glUniform1f(u_vid_haba, (float)haba);
-	glUniform1f(u_vid_totalShift, (float)totalShift);
-	glUniform1i(u_vid_timeStep, kk);
-	glUniform1f(u_vid_manualShift, (float)SHIFT);
+    // SBS動画テクスチャを texture unit 0 に割り当て
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, videoTexID);
+    glUniform1i(u_vid_sbsTexture, 0);
 
-	//// �ǉ��ς݂Ȃ�
-	//glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
-	//glUniform3f(u_vid_rgbGain, colorGainR, colorGainG, colorGainB);
-	//glUniform1f(u_vid_gamma, colorGamma);
-	//glUniform1f(u_vid_crosstalk, crosstalkFactor);
-	//glUniform1i(u_vid_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
-	// �`��
-	glDrawArrays(GL_TRIANGLES, 0, 6);
+    // 旧方式対応パラメータ
+    glUniform1f(u_vid_haba, (float)haba);
+    glUniform1f(u_vid_totalShift, (float)totalShift);
+    glUniform1i(u_vid_timeStep, kk);
+    glUniform1f(u_vid_manualShift, (float)SHIFT);
 
-	// ��Еt��
-	glUseProgram(0);
-	glActiveTexture(GL_TEXTURE0);
-	glBindVertexArray(0);
+    // 旧方式の W + H 相当
+    if (u_vid_slantY >= 0)
+        glUniform1f(u_vid_slantY, barrierSlantY);
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+    glBindVertexArray(0);
+    glUseProgram(0);
+
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glEnable(GL_DEPTH_TEST);
 }
 
 const double TARGET_HZ = 120.0;
@@ -638,14 +645,17 @@ void DTimer(int totalMilliSeconds)
 	if (shouldRender) {
 		if (VideoSwitch) VideoMode->Update(0);
 		if (arduinoSerial.is_open()) {
-			char light_command = TIME_DIV_0;
-			switch (kk) {
-			case 0: light_command = TIME_DIV_0; break;
-			case 3: light_command = TIME_DIV_1; break;
-			case 2: light_command = TIME_DIV_2; break;
-			case 1: light_command = TIME_DIV_3; break;
+			if (running == 0 && kk == 0) {
+				SendArduinoCommand(TIME_DIV_0);
 			}
-			SendArduinoCommand(light_command);
+		//	char light_command = TIME_DIV_0;
+		//	switch (kk) {
+		//	case 0: light_command = TIME_DIV_0; break;
+		//	case 3: light_command = TIME_DIV_1; break;
+		//	case 2: light_command = TIME_DIV_2; break;
+		//	case 1: light_command = TIME_DIV_3; break;
+		//	}
+			}
 		}
 		glutPostRedisplay();
 		if (running == 1 && tickCount > 0) {
@@ -1056,6 +1066,10 @@ int main(int argc, char ** argv) {
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(IM_W, IM_H);
+
+	glutInitContextVersion(3, 3);
+	glutInitContextProfile(GLUT_CORE_PROFILE);
+	glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
 
 	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_STENCIL | GLUT_STEREO);
 	glutCreateWindow("Test");

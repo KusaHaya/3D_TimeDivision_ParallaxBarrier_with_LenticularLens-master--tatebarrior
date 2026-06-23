@@ -1,60 +1,73 @@
-// advanced_parallax_sbs.frag
-
 #version 330 core
 
 in vec2 UV;
 
-// C++から受け取るuniform変数
-uniform sampler2D sbsTexture; // サイドバイサイド動画テクスチャ
+uniform sampler2D sbsTexture;
 
-uniform float haba;
-uniform float totalShift;
-uniform int   timeStep;
-uniform float manualShift;
+// 旧方式と対応させるuniform
+uniform float haba;         // サブピクセル単位
+uniform float totalShift;   // C++側で MiddleLine - 48.0 * haba を渡す
+uniform int   timeStep;     // 旧方式の kk
+uniform float manualShift;  // 旧方式の SHIFT
+uniform float slantY;       // 旧方式の W + H 相当なら 1.0
 
 out vec4 color;
 
-// 従来方式の計算式をGLSLで再現したヘルパー関数
-// サブピクセル座標を受け取り、左目用ならtrueを返す
-bool shouldShowLeftEye(float W) {
-    float value = (W - (W - totalShift) / haba) + (2.0 * float(timeStep)) + manualShift;
-    return mod(value, 12.0) < 6.0;
+float positiveMod(float x, float m)
+{
+    return mod(mod(x, m) + m, m);
 }
 
-void main() {
+// C++の int / int に近づけるための除算
+// 通常 totalShift が負で W - totalShift が正なら floor だけでもほぼ同じ
+float cxxIntDivLike(float a, float b)
+{
+    float q = a / b;
+    return (q >= 0.0) ? floor(q) : ceil(q);
+}
+
+// true なら左目、false なら右目
+bool shouldShowLeftEye(float Wsub, float Ypx)
+{
+    // 旧方式の W + H に相当
+    float W = Wsub + slantY * Ypx;
+
+    // 旧方式の (W - totalShift) / haba
+    float correction = cxxIntDivLike(W - totalShift, haba);
+
+    // 旧方式の ((W + H) - correction) + 2 * kk + SHIFT
+    float value = W
+                - correction
+                + 2.0 * float(timeStep)
+                + manualShift;
+
+    // 旧方式では %8 < 4 がステンシル1
+    // ステンシル1側には右目を描いていたので、
+    // shaderで true=左目 にするなら >=4
+    return positiveMod(value, 8.0) >= 4.0;
+}
+
+void main()
+{
+    vec2 leftUV  = vec2(UV.x * 0.5,       UV.y);
+    vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
+
+    vec4 leftColor  = texture(sbsTexture, leftUV);
+    vec4 rightColor = texture(sbsTexture, rightUV);
+
     vec4 finalColor;
     finalColor.a = 1.0;
 
-    float subpixel_coord_x = gl_FragCoord.x * 3.0;
+    float Wsub = floor(gl_FragCoord.x) * 3.0;
+    float Ypx  = floor(gl_FragCoord.y);
 
-    // --- R, G, Bの各成分ごとに、表示すべき視点とテクスチャ座標を決定 ---
+    bool rLeft = shouldShowLeftEye(Wsub + 0.0, Ypx);
+    bool gLeft = shouldShowLeftEye(Wsub + 1.0, Ypx);
+    bool bLeft = shouldShowLeftEye(Wsub + 2.0, Ypx);
 
-    // 【R成分の決定】
-    if (shouldShowLeftEye(subpixel_coord_x + 0.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y); // テクスチャの左半分
-        finalColor.r = texture(sbsTexture, leftUV).r;
-    } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y); // テクスチャの右半分
-        finalColor.r = texture(sbsTexture, rightUV).r;
-    }
-
-    // 【G成分の決定】
-    if (shouldShowLeftEye(subpixel_coord_x + 1.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y);
-        finalColor.g = texture(sbsTexture, leftUV).g;
-    } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
-        finalColor.g = texture(sbsTexture, rightUV).g;
-    }
-
-    // 【B成分の決定】
-    if (shouldShowLeftEye(subpixel_coord_x + 2.0)) {
-        vec2 leftUV = vec2(UV.x * 0.5, UV.y);
-        finalColor.b = texture(sbsTexture, leftUV).b;
-    } else {
-        vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
-        finalColor.b = texture(sbsTexture, rightUV).b;
-    }
+    finalColor.r = rLeft ? leftColor.r : rightColor.r;
+    finalColor.g = gLeft ? leftColor.g : rightColor.g;
+    finalColor.b = bLeft ? leftColor.b : rightColor.b;
 
     color = finalColor;
 }
