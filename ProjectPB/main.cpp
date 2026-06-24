@@ -625,40 +625,48 @@ std::chrono::steady_clock::time_point nextFrameDeadline;
 
 void DTimer(int totalMilliSeconds)
 {
-	using steady_clock = std::chrono::steady_clock;
-	const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
-	auto now = steady_clock::now();
+    using steady_clock = std::chrono::steady_clock;
+    const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
+    auto now = steady_clock::now();
 
-	if (!syncClockInitialized) {
-		nextFrameDeadline = now;
-		syncClockInitialized = true;
-	}
+    if (!syncClockInitialized) {
+        nextFrameDeadline = now;
+        syncClockInitialized = true;
+    }
 
-	bool shouldRender = false;
-	int tickCount = 0;
-	while (now >= nextFrameDeadline) {
-		shouldRender = true;
-		tickCount++;
-		nextFrameDeadline += targetPeriod;
-	}
+    bool shouldRender = false;
 
-	if (shouldRender) {
-		if (VideoSwitch) VideoMode->Update(0);
-		if (arduinoSerial.is_open()) {
-			if ( kk == 0) {
-				SendArduinoCommand(TIME_DIV_0);
-			}
-		}
-		glutPostRedisplay();
-		if (running == 1 && tickCount > 0) {
-			kk = (kk + (tickCount % 4)) % 4;
-		}
-	}
+    while (now >= nextFrameDeadline) {
+        shouldRender = true;
+        nextFrameDeadline += targetPeriod;
+    }
 
-	auto remain = nextFrameDeadline - steady_clock::now();
-	auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
-	unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
-	glutTimerFunc(nextCallMs, DTimer, 0);
+    if (shouldRender) {
+        if (VideoSwitch && mrk == 1 && VideoMode) {
+            VideoMode->Update(0);
+        }
+
+        glutPostRedisplay();
+    }
+
+    auto remain = nextFrameDeadline - steady_clock::now();
+    auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
+    unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
+
+    glutTimerFunc(nextCallMs, DTimer, 0);
+}
+
+void SendTimeDivisionBlock02()
+{
+    if (!arduinoSerial.is_open()) return;
+    if (running != 1) return;
+
+    if (kk == 0) {
+        SendArduinoCommand(TIME_DIV_0);
+    }
+    else if (kk == 2) {
+        SendArduinoCommand(TIME_DIV_2);
+    }
 }
 
 int frame = 0;
@@ -729,6 +737,14 @@ void disp(void) {
 		flag = 1;
 	}
 	glutSwapBuffers();
+
+	// 表示したkkに対応して、0または2だけArduinoへ送る
+	SendTimeDivisionBlock02();
+
+	// 次フレーム用にkkを進める
+	if (running) {
+		kk = (kk + 1) % 4;
+	}
 }
 
 static void KeyEvent(unsigned char key, int x, int y) {

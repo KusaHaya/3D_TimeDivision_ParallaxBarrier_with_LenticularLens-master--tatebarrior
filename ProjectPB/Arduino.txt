@@ -64,24 +64,28 @@ void onDelay(int PIN)
 // 新規追加：上下ペア同時制御用
 void onDelaySimultaneous(int PIN_TOP, int PIN_BOTTOM)
 {
-    if (PIN_PAST >= 0) {
+  if (PIN_PAST >= 0) {
     digitalWrite(PIN_PAST, HIGH);
   }
-  digitalWrite(PIN_PAST, HIGH);
+
   delayMicroseconds(2500);
+
   digitalWrite(PIN_TOP, HIGH);
   delayMicroseconds(2000);
-  digitalWrite(PIN_PAST, LOW);
+
+  if (PIN_PAST >= 0) {
+    digitalWrite(PIN_PAST, LOW);
+  }
+
   digitalWrite(PIN_BOTTOM, HIGH);
 
+  delayMicroseconds(pluse_width_tb * 1000 - 4800);
 
-  // パルス幅の分だけ待機 (周期は変わらない)
-  delayMicroseconds(pluse_width_tb  * 1000 - 4800 );
-  // 2つのピンをLOWにする
   digitalWrite(PIN_TOP, LOW);
-  // delayMicroseconds(500);
-    PIN_PAST = PIN_BOTTOM;
+
+  PIN_PAST = PIN_BOTTOM;
   digitalWrite(PIN_BOTTOM, LOW);
+
   delayMicroseconds(200);
 }
 
@@ -102,6 +106,37 @@ void runOneTimeDivisionCycle()
   }
 }
 
+void runTwoPhaseBlock_0()
+{
+  // 前半: 0 → 3
+  const int phaseOrder[2] = {0, 3};
+
+  for (int i = 0; i < 2; i++) {
+    int phase = phaseOrder[i];
+    cnt = phase;
+
+    onDelaySimultaneous(
+      OUTPUT_PINS[phase + 4],
+      OUTPUT_PINS[phase]
+    );
+  }
+}
+
+void runTwoPhaseBlock_2()
+{
+  // 後半: 2 → 1
+  const int phaseOrder[2] = {2, 1};
+
+  for (int i = 0; i < 2; i++) {
+    int phase = phaseOrder[i];
+    cnt = phase;
+
+    onDelaySimultaneous(
+      OUTPUT_PINS[phase + 4],
+      OUTPUT_PINS[phase]
+    );
+  }
+}
 
 int prev = 0;
 bool running = true;
@@ -148,28 +183,30 @@ void loop()
       break;
 
     // --- ここからが本命の4時分割ペア制御 ---
-    case TIME_DIV_0:
-    {
+  case TIME_DIV_0:
+  {
     if (running) {
-        turnAllLightsOff();
-        runOneTimeDivisionCycle();
+      turnAllLightsOff();
+      runTwoPhaseBlock_0();
     }
     break;
-    }
-    case TIME_DIV_1:
-    case TIME_DIV_2:
-    case TIME_DIV_3:
-    {
-    int received_kk = incomingByte - TIME_DIV_0;
-    if (received_kk >= 0 && received_kk < 4) {
-        cnt = received_kk;
-        if (running) {
-        turnAllLightsOff();
-        onDelaySimultaneous(OUTPUT_PINS[cnt + 4], OUTPUT_PINS[cnt]);
-        }
+  }
+
+  case TIME_DIV_2:
+  {
+    if (running) {
+      turnAllLightsOff();
+      runTwoPhaseBlock_2();
     }
     break;
-    }
+  }
+
+  case TIME_DIV_1:
+  case TIME_DIV_3:
+  {
+    // 今回はPCから送らない想定なので何もしない
+    break;
+  }
 
     case NEXT_TIMEDIVISION:
     {

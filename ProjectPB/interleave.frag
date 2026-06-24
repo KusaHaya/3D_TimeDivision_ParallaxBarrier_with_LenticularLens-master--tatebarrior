@@ -28,27 +28,20 @@ float positiveMod(float x, float m)
 
 bool shouldShowLeftEye(float Wsub, float Ypx)
 {
-    // 旧方式の W + H に相当
-    float slantedCoord = Wsub + slantY * Ypx;
+    // バリアと同じ斜め座標
+    float S = Wsub + slantY * Ypx;
 
-    // 旧方式:
-    // totalShift = MiddleLine - 48 * haba;
-    float middleLineSub = middleLinePx * 3.0;
-    float totalShiftSub = middleLineSub - 48.0 * haba;
+    // C++側で渡した totalShift = MiddleLine - 48 * haba を使う
+    float q = (S - totalShift) / max(haba, 1.0);
 
-    // 旧方式:
-    // (W - totalShift) / haba
-    float correction = floor((slantedCoord - totalShiftSub) / haba);
+    // floorを使わず、連続的な幅補正にする
+    float correction = q;
 
-    // 旧方式:
-    // ((W + H) - correction) + 2 * kk + SHIFT
-    float value = slantedCoord
+    float value = S
                 - correction
                 + 2.0 * float(timeStep)
                 + manualShift;
 
-    // 旧方式では % 8 < 4 がステンシル1 = 右目
-    // shaderでは true を左目にしているので >= 4
     return positiveMod(value, 8.0) >= 4.0;
 }
 void main()
