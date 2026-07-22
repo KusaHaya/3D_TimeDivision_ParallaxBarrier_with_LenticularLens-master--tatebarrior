@@ -14,7 +14,9 @@
 #include <mmsystem.h>
 #include <stdio.h>
 #include <GL/glew.h>
-#include <GL/glut.h>
+//#include <GL/glut.h>
+#define GLFW_INCLUDE_NONE
+#include <GLFW/glfw3.h>
 #include <math.h>
 #include <thread>
 #include "DrawVideo.h"
@@ -149,6 +151,10 @@ bool VideoSwitch = false;
 
 // random ��keyboardFuc�̒��ł����g���Ă��Ȃ�
 int random = 0; // random mode for test
+
+GLFWwindow* gWindow = nullptr;
+int framebufferWidth = IM_W;
+int framebufferHeight = IM_H;
 
 GLuint shaderProgram;
 GLuint videoshaderProgram;
@@ -454,18 +460,7 @@ void setupQuad() {
 }
 
 void init(void) {
-	glewInit();
-	typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int);
 
-	PFNWGLSWAPINTERVALEXTPROC pWglSwapIntervalEXT =
-		(PFNWGLSWAPINTERVALEXTPROC)wglGetProcAddress("wglSwapIntervalEXT");
-
-	if (pWglSwapIntervalEXT) {
-		pWglSwapIntervalEXT(1);
-	}
-	else {
-		printf("[WARN] V-Sync extension not available.\n");
-	}
 	anmode = 0;
 
 	glGenTextures(1, &imageL);
@@ -534,6 +529,112 @@ void init(void) {
 	printf("head-tracking: OFF\n");
 	printf("mode : SS\n");
 	printf("haba = %d\n", haba);
+}
+
+bool initializeGlfwAndGlew()
+{
+    glfwSetErrorCallback(
+        [](int errorCode, const char* description)
+        {
+            fprintf(
+                stderr,
+                "[GLFW ERROR] %d: %s\n",
+                errorCode,
+                description);
+        });
+
+    if (glfwInit() != GLFW_TRUE) {
+        fprintf(stderr, "Failed to initialize GLFW.\n");
+        return false;
+    }
+
+    // OpenGL 3.3を要求
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+    /*
+     * 現在のコードには以下の固定機能APIが残っているため、
+     * COREではなくCOMPATプロファイルを使う。
+     *
+     * glEnable(GL_TEXTURE_2D)
+     * glTexEnvi(...)
+     */
+    glfwWindowHint(
+        GLFW_OPENGL_PROFILE,
+        GLFW_OPENGL_COMPAT_PROFILE);
+
+    glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);
+    glfwWindowHint(GLFW_DEPTH_BITS, 24);
+    glfwWindowHint(GLFW_STENCIL_BITS, 8);
+
+    gWindow = glfwCreateWindow(
+        IM_W,
+        IM_H,
+        "ProjectPB GLFW",
+        nullptr,
+        nullptr);
+
+    if (!gWindow) {
+        fprintf(stderr, "Failed to create GLFW window.\n");
+        glfwTerminate();
+        return false;
+    }
+
+    glfwSetWindowPos(gWindow, 0, 0);
+
+    /*
+     * ここが重要。
+     * GLEW初期化より先にOpenGLコンテキストをcurrentにする。
+     */
+    glfwMakeContextCurrent(gWindow);
+
+    // VSyncを有効化
+    glfwSwapInterval(1);
+
+    /*
+     * GLEW初期化。
+     * OpenGLコンテキストがcurrentになった後に実行する。
+     */
+    glewExperimental = GL_TRUE;
+
+    const GLenum glewResult = glewInit();
+
+    if (glewResult != GLEW_OK) {
+        fprintf(
+            stderr,
+            "Failed to initialize GLEW: %s\n",
+            reinterpret_cast<const char*>(
+                glewGetErrorString(glewResult)));
+
+        glfwDestroyWindow(gWindow);
+        gWindow = nullptr;
+        glfwTerminate();
+
+        return false;
+    }
+
+    printf(
+        "OpenGL version: %s\n",
+        reinterpret_cast<const char*>(
+            glGetString(GL_VERSION)));
+
+    printf(
+        "GLEW version: %s\n",
+        reinterpret_cast<const char*>(
+            glewGetString(GLEW_VERSION)));
+
+    glfwGetFramebufferSize(
+        gWindow,
+        &framebufferWidth,
+        &framebufferHeight);
+
+    glViewport(
+        0,
+        0,
+        framebufferWidth,
+        framebufferHeight);
+
+    return true;
 }
 
 // RGBCG_image() �̑���ƂȂ�V�����֐�
@@ -736,7 +837,7 @@ void disp(void) {
 		qq = 0;
 		flag = 1;
 	}
-	glutSwapBuffers();
+	
 
 	// 表示したkkに対応して、0または2だけArduinoへ送る
 	SendTimeDivisionBlock02();
@@ -1066,45 +1167,93 @@ static void KeySpecialEvent(int key, int x, int y) {
 
 
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv)
+{
+    MMRESULT timerResult = timeBeginPeriod(1);
 
-	MMRESULT timerResult = timeBeginPeriod(1);
-	if (timerResult != TIMERR_NOERROR) {
-		printf("[WARN] Failed to set 1ms timer resolution.\n");
-	}
+    if (timerResult != TIMERR_NOERROR) {
+        printf(
+            "[WARN] Failed to set 1ms timer resolution.\n");
+    }
 
+    try {
+        arduinoSerial.open("COM3");
 
-	arduinoSerial.open("COM3"); // Arduino�̃|�[�g���ɍ��킹�ĕύXCOm1�̓f�o�b�O�p
-	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
-	SendArduinoCommand(RESET_SYNC);
-	SendArduinoCommand(ENABLE_TIMEDIVISION);
-	TCPClient client("127.0.0.1", 30000);
-	glutInit(&argc, argv);
-	glutInitWindowPosition(0, 0);
-	glutInitWindowSize(IM_W, IM_H);
+        arduinoSerial.set_option(
+            boost::asio::serial_port_base::baud_rate(
+                115200));
 
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_STENCIL | GLUT_STEREO);
-	glutCreateWindow("Test");
+        SendArduinoCommand(RESET_SYNC);
+        SendArduinoCommand(ENABLE_TIMEDIVISION);
+    }
+    catch (const boost::system::system_error& error) {
+        fprintf(
+            stderr,
+            "[WARN] Failed to open Arduino: %s\n",
+            error.what());
+    }
 
-	VideoMode = std::unique_ptr<vmlab::DrawVideo>(new vmlab::DrawVideo);
-	VideoSwitch = false;
-	glutTimerFunc(0, DTimer, 0);
+    TCPClient client("127.0.0.1", 30000);
 
-	init();
-	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-	Receive(client, [](boost::system::error_code e, size_t) { std::cout << e.message() << std::endl; });
-	glutDisplayFunc(disp);
-	glutKeyboardFunc(KeyEvent);
-	glutKeyboardUpFunc(KeyUp);
-	glutSpecialFunc(KeySpecialEvent);
-	//glutIdleFunc(disp);
+    // GLFWでコンテキスト作成 → GLEW初期化
+    if (!initializeGlfwAndGlew()) {
+        timeEndPeriod(1);
+        return 1;
+    }
 
-	glutMainLoop();
-	client.Close();
-	timeEndPeriod(1);
+    // GLEW初期化後なのでOpenGL関数を使用できる
+    init();
 
-	glDeleteTextures(1, &imageL);
-	glDeleteTextures(1, &imageR);
+    VideoMode =
+        std::make_unique<vmlab::DrawVideo>();
 
-	return 0;
+    VideoSwitch = false;
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(1000));
+
+    Receive(
+        client,
+        [](boost::system::error_code error, size_t)
+        {
+            if (error) {
+                std::cerr
+                    << "[TCP ERROR] "
+                    << error.message()
+                    << std::endl;
+            }
+        });
+
+    while (!glfwWindowShouldClose(gWindow)) {
+        glfwPollEvents();
+
+        if (VideoSwitch && mrk == 1 && VideoMode) {
+            VideoMode->Update(0);
+        }
+
+        disp();
+
+        // disp()内から移動させる場合
+        glfwSwapBuffers(gWindow);
+    }
+
+    client.Close();
+
+    glDeleteTextures(1, &imageL);
+    glDeleteTextures(1, &imageR);
+
+    glDeleteBuffers(1, &quadVBO);
+    glDeleteVertexArrays(1, &quadVAO);
+
+    glDeleteProgram(shaderProgram);
+    glDeleteProgram(videoshaderProgram);
+
+    glfwDestroyWindow(gWindow);
+    gWindow = nullptr;
+
+    glfwTerminate();
+
+    timeEndPeriod(1);
+
+    return 0;
 }
