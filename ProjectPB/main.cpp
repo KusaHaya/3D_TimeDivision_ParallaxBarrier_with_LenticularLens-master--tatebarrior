@@ -747,14 +747,14 @@ void DTimer(int totalMilliSeconds)
             VideoMode->Update(0);
         }
 
-        glutPostRedisplay();
+        //glutPostRedisplay();
     }
 
     auto remain = nextFrameDeadline - steady_clock::now();
     auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
     unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
 
-    glutTimerFunc(nextCallMs, DTimer, 0);
+    //glutTimerFunc(nextCallMs, DTimer, 0);
 }
 
 void SendTimeDivisionBlock02()
@@ -863,33 +863,33 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case 'Z':
 		anmode = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'A':
 		anmode = 1;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'Q':
 		anmode = 2;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'q':
 		kk = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'w':
 		kk = 1;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'e':
 		kk = 2;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'r':
 		kk = 3;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 't':
 		if (running) {
@@ -902,11 +902,11 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			SendArduinoCommand(RESET_SYNC);
 			SendArduinoCommand(ENABLE_TIMEDIVISION);
 		}
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'o':
 		SHIFT += 1;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'h':
 		if (ht == 0) {
@@ -922,12 +922,12 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			haba = haba_first;
 		}
 		MiddleLine = MiddleDefault;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'a':
 		haba = haba + 1;
 		printf("haba = %d\n", haba);
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 's':
 		VideoMode->SetSpeed(200);
@@ -948,7 +948,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			mode = 1;
 			printf("mode : SP\n");
 		}
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case'x':
 		if (random == 0) {
@@ -967,7 +967,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			mode = 2;
 			printf("mode : SS\n");
 		}
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case'c':
 		if (random == 0) {
@@ -986,7 +986,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			mode = 0;
 			printf("mode : PP\n");
 		}
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'L':
 		LiverMode = true;
@@ -998,46 +998,46 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		img = 2;
 		random = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '2':
 		img = 3;
 		random = 1;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '3':
 		img = 4;
 		random = 2;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '4':
 		img = 5;
 		random = 3;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '5':
 		img = 6;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '6':
 		img = 7;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '7':
 		img = 8;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case '0':
 		img = 1;
 		random = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'm':
 		mrk = 1;
@@ -1057,31 +1057,32 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		}
 
 		glutPostRedisplay();
+		//glutDisplayFunc(disp);
 		break;
 	case 'M':
 		mrk = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'b':
 		eyeright = 1;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'B':
 		eyeright = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'v':
 		eyeleft = 1;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'V':
 		eyeleft = 0;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'S':
 		VideoMode->Mode3D = !VideoMode->Mode3D;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 		/*case 'p':
 			VideoMode->printflag = false;
@@ -1091,7 +1092,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		ReserveLR = !ReserveLR;
 		if (ReserveLR) printf("RL\n");
 		else printf("LR\n");
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 		//case 'f':
 		//	zsft += 5;
@@ -1104,12 +1105,12 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case '[':
 		haba++;
 		//printf("%d\n", haba);
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case ']':
 		haba--;
 		//printf("%d\n", haba);
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 		break;
 	case 'k':
 		kk = (kk + 1) % 4;
@@ -1132,7 +1133,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		printf("barrierSlantY = %.3f, angle = %.3f deg\n",
 			barrierSlantY,
 			atan(-3.0f / barrierSlantY) * 180.0f / 3.14159265f);
-		glutPostRedisplay();
+		//glutPostRedisplay();
 		break;
 
 	case 'F':
@@ -1140,7 +1141,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		printf("barrierSlantY = %.3f, angle = %.3f deg\n",
 			barrierSlantY,
 			atan(-3.0f / barrierSlantY) * 180.0f / 3.14159265f);
-		glutPostRedisplay();
+		//glutPostRedisplay();
 		break;
 
 	}
@@ -1156,11 +1157,11 @@ static void KeyUp(unsigned
 static void KeySpecialEvent(int key, int x, int y) {
 	if (key == GLUT_KEY_LEFT) {
 		theta = (int)(theta + 1) % 360;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 	}
 	if (key == GLUT_KEY_RIGHT) {
 		theta = (int)(theta - 1 + 360) % 360;
-		glutDisplayFunc(disp);
+		//glutDisplayFunc(disp);
 	}
 
 }
