@@ -701,6 +701,16 @@ void HoldFrameAndBacklight(int frameIndex)
 	glutPostRedisplay();
 }
 
+void SelectFrameWhileHeld(int frameIndex)
+{
+	if (!frameHoldMode) {
+		printf("q/w/e/r are available after stopping with t.\n");
+		return;
+	}
+
+	HoldFrameAndBacklight(frameIndex);
+}
+
 int frame = 0;
 bool GetPic = false;
 int prt = 0;
@@ -818,16 +828,16 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		break;
 	case 'q':
-		HoldFrameAndBacklight(0);
+		SelectFrameWhileHeld(0);
 		break;
 	case 'w':
-		HoldFrameAndBacklight(1);
+		SelectFrameWhileHeld(1);
 		break;
 	case 'e':
-		HoldFrameAndBacklight(2);
+		SelectFrameWhileHeld(2);
 		break;
 	case 'r':
-		HoldFrameAndBacklight(3);
+		SelectFrameWhileHeld(3);
 		break;
 	case 't':
 		if (!frameHoldMode) {
