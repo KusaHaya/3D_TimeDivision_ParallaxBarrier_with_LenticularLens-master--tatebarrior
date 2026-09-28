@@ -1,4 +1,4 @@
-#define REFRESH_RATE 120
+#define REFRESH_RATE 144
 #define HIGH_RATE 100
 
 #define CONNECTION_BEGIN 10
@@ -19,6 +19,7 @@
 #define LIGHT_EXIT 110
 
 #define NEXT_TIMEDIVISION 21
+#define RESET_SYNC 20
 
 // 4時分割 同時制御用コマンド (新規追加)
 #define TIME_DIV_0 200
@@ -40,10 +41,10 @@ const int offset = 1500;
 // (例： 9-12が上部、2-5が下部)
 const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
 
-// 120 Hzの1フレームは約8333us。V-Sync起点で上下を時間差点灯する。
-const unsigned long TOP_ON_US = 2500;
-const unsigned long BOTTOM_SWITCH_US = 4500;
-const unsigned long BACKLIGHT_OFF_US = 7000;
+// 144 Hzの1フレームは約6944us。V-Sync起点で上下を時間差点灯する。
+const unsigned long TOP_ON_US = 2080;
+const unsigned long BOTTOM_SWITCH_US = 3750;
+const unsigned long BACKLIGHT_OFF_US = 6250;
 
 enum BacklightStage {
   BACKLIGHT_IDLE,
@@ -246,6 +247,17 @@ void loop()
 
   
     // --- 制御ここまで ---
+
+    case RESET_SYNC:
+      running = false;
+      backlightStage = BACKLIGHT_IDLE;
+      cnt = 0;
+      PIN_PAST = -1;
+      timedPastBottomPin = -1;
+      timedTopPin = -1;
+      timedBottomPin = -1;
+      turnAllLightsOff();
+      break;
 
     case ENABLE_TIMEDIVISION:
       running = true;

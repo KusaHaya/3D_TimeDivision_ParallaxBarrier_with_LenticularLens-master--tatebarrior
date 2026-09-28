@@ -40,7 +40,7 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define WID 528
 #define HGT 297
 
-#define REFRESH_RATE 120
+#define REFRESH_RATE 144
 
 // PC->Arduino commands
 #define ENABLE_TIMEDIVISION 12
@@ -658,6 +658,19 @@ void SendHeldFrame(int frameIndex)
 	SendArduinoCommand(holdCommands[frameIndex & 3]);
 }
 
+void RestartTimeDivisionSync(const char* modeName)
+{
+	frameHoldMode = false;
+	holdCommandPending = false;
+	running = 1;
+	kk = 0;
+	displayedKk = 0;
+
+	SendArduinoCommand(RESET_SYNC);
+	SendArduinoCommand(ENABLE_TIMEDIVISION);
+	printf("time-division sync reset: %s (kk = 0)\n", modeName);
+}
+
 void HoldFrameAndBacklight(int frameIndex)
 {
 	const int selectedFrame = frameIndex & 3;
@@ -757,6 +770,10 @@ void disp(void) {
 
 		qq = 0;
 		flag = 1;
+		// Texture preparation is not a presented time-division frame. Keep the
+		// current front buffer and render kk=0 on the next display callback.
+		glutPostRedisplay();
+		return;
 	}
 	glutSwapBuffers();
 
@@ -988,12 +1005,14 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			VideoSwitch = true;
 		}
 
+		RestartTimeDivisionSync("video");
 		glutPostRedisplay();
 		break;
 	case 'M':
 		mrk = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		RestartTimeDivisionSync("still image");
+		glutPostRedisplay();
 		break;
 	case 'b':
 		eyeright = 1;
