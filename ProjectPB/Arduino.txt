@@ -119,10 +119,12 @@ void runOneTimeDivisionFrame(int frameIndex)
   int phase = phaseOrder[frameIndex & 3];
 
   cnt = phase;
-  onDelaySimultaneous(
-    OUTPUT_PINS[phase + 4],
-    OUTPUT_PINS[phase]
-  );
+  PIN_PAST = -1;
+
+  // Keep both lights on for the whole display frame. They are turned off
+  // when the next TIME_DIV command is received.
+  digitalWrite(OUTPUT_PINS[phase + 4], HIGH);
+  digitalWrite(OUTPUT_PINS[phase], HIGH);
 }
 
 int prev = 0;
@@ -169,7 +171,8 @@ void loop()
    //   }
       break;
 
-    // PCから各表示フレームごとに1コマンドを受け、対応する上下ペアを制御する。
+    // PCから各表示フレームごとに1コマンドを受け、対応する上下ペアを
+    // 次のフレームコマンドまで連続点灯する。
   case TIME_DIV_0:
   case TIME_DIV_1:
   case TIME_DIV_2:
