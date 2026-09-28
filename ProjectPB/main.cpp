@@ -819,22 +819,6 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		break;
 	case 't':
-		if (frameHoldMode) {
-			frameHoldMode = false;
-		}
-		if (running) {
-			running = 0;
-			SendArduinoCommand(DISABLE_TIMEDIVISION);
-		}
-		else {
-			running = 1;
-			kk = 0;
-			SendArduinoCommand(RESET_SYNC);
-			SendArduinoCommand(ENABLE_TIMEDIVISION);
-		}
-		glutDisplayFunc(disp);
-		break;
-	case 'g':
 		if (!frameHoldMode) {
 			// kk already points to the next frame after swap, so restore the
 			// frame that is actually visible before entering hold mode.
