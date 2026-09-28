@@ -1,4 +1,4 @@
-﻿#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #define NOMINMAX
 
 #include <algorithm>
@@ -54,6 +54,12 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define TIME_DIV_1 201
 #define TIME_DIV_2 202
 #define TIME_DIV_3 203
+
+// Freeze one display frame and its matching backlight phase.
+#define HOLD_FRAME_0 210
+#define HOLD_FRAME_1 211
+#define HOLD_FRAME_2 212
+#define HOLD_FRAME_3 213
 
 
 
@@ -118,6 +124,8 @@ int img = 1; // image number: 1~10
 int qq = 1; // an auto parameter acting as a switch signal
 int haba = haba_first; // phase width with 1/3 pixel (= sub-pixel)
 int kk = 0; // �������̐���p�����[�^
+int displayedKk = 0; // frame currently visible on the display
+bool frameHoldMode = false;
 int cali_flag = 0; // calibation mode
 // int phaba = 0;
 // int pMiddleLine = 0;
@@ -669,6 +677,16 @@ void SendTimeDivisionBlock02()
     }
 }
 
+void SendHeldFrame(int frameIndex)
+{
+	static const int holdCommands[4] = {
+		HOLD_FRAME_0, HOLD_FRAME_1, HOLD_FRAME_2, HOLD_FRAME_3
+	};
+
+	if (!arduinoSerial.is_open()) return;
+	SendArduinoCommand(holdCommands[frameIndex & 3]);
+}
+
 int frame = 0;
 bool GetPic = false;
 int prt = 0;
@@ -681,6 +699,9 @@ void disp(void) {
 	glDisable(GL_STENCIL_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	if (flag == 1) {
+		// Keep the exact kk that is about to be presented. Key input can then
+		// freeze this frame instead of the next frame in the sequence.
+		displayedKk = kk;
 
 
 		glDisable(GL_TEXTURE_2D);
@@ -738,11 +759,18 @@ void disp(void) {
 	}
 	glutSwapBuffers();
 
-	// 表示したkkに対応して、0または2だけArduinoへ送る
-	SendTimeDivisionBlock02();
+	// Keep sending the selected phase while held so the backlight maintains
+	// its normal pulsed drive instead of being left continuously on.
+	if (frameHoldMode) {
+		SendHeldFrame(displayedKk);
+	}
+	else {
+		// 表示したkkに対応して、0または2だけArduinoへ送る
+		SendTimeDivisionBlock02();
+	}
 
 	// 次フレーム用にkkを進める
-	if (running) {
+	if (running && !frameHoldMode) {
 		kk = (kk + 1) % 4;
 	}
 }
@@ -791,6 +819,9 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		break;
 	case 't':
+		if (frameHoldMode) {
+			frameHoldMode = false;
+		}
 		if (running) {
 			running = 0;
 			SendArduinoCommand(DISABLE_TIMEDIVISION);
@@ -802,6 +833,27 @@ static void KeyEvent(unsigned char key, int x, int y) {
 			SendArduinoCommand(ENABLE_TIMEDIVISION);
 		}
 		glutDisplayFunc(disp);
+		break;
+	case 'g':
+		if (!frameHoldMode) {
+			// kk already points to the next frame after swap, so restore the
+			// frame that is actually visible before entering hold mode.
+			frameHoldMode = true;
+			running = 0;
+			kk = displayedKk;
+			SendArduinoCommand(ENABLE_TIMEDIVISION);
+			SendHeldFrame(displayedKk);
+			printf("frame hold: ON (kk = %d)\n", displayedKk);
+		}
+		else {
+			frameHoldMode = false;
+			running = 1;
+			kk = 0;
+			SendArduinoCommand(RESET_SYNC);
+			SendArduinoCommand(ENABLE_TIMEDIVISION);
+			printf("frame hold: OFF (restart from kk = 0)\n");
+		}
+		glutPostRedisplay();
 		break;
 	case 'o':
 		SHIFT += 1;

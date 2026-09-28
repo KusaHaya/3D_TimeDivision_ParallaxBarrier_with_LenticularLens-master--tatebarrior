@@ -25,6 +25,12 @@
 #define TIME_DIV_1 201
 #define TIME_DIV_2 202
 #define TIME_DIV_3 203
+
+// PC画面のkkと対応するバックライト位相を繰り返すコマンド
+#define HOLD_FRAME_0 210
+#define HOLD_FRAME_1 211
+#define HOLD_FRAME_2 212
+#define HOLD_FRAME_3 213
 int PIN_PAST = -1;
 int cnt = 0;
 const int offset = 1500;
@@ -205,6 +211,25 @@ void loop()
   case TIME_DIV_3:
   {
     // 今回はPCから送らない想定なので何もしない
+    break;
+  }
+
+  case HOLD_FRAME_0:
+  case HOLD_FRAME_1:
+  case HOLD_FRAME_2:
+  case HOLD_FRAME_3:
+  {
+    // PCの表示順kk=0,1,2,3を、実際の点灯順0,3,2,1へ変換する。
+    const int phaseOrder[4] = {0, 3, 2, 1};
+    int frameIndex = incomingByte - HOLD_FRAME_0;
+    int phase = phaseOrder[frameIndex];
+
+    cnt = phase;
+    turnAllLightsOff();
+    onDelaySimultaneous(
+      OUTPUT_PINS[phase + 4],
+      OUTPUT_PINS[phase]
+    );
     break;
   }
 
