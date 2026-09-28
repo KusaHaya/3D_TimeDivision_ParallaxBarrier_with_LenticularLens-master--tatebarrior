@@ -16,7 +16,9 @@
 boost : version 1_73_0  
 ターゲットプラットフォーム: x64
 ## 環境構築
-1. [Kinect SDK](https://www.microsoft.com/en-us/download/details.aspx?id=44561)のインストール
+1. Intel RealSense SDK 2.0のインストール  
+   RealSense ViewerでColorとDepthを同時に取得できることを確認する。  
+   ヘッドトラッキングサーバーの導入方法は[RealSenseTrackingServer/README.md](RealSenseTrackingServer/README.md)を参照。
 2. boostの設定
     - boost1_58_0  
     bullに中のビルド済みboost1_58_0のフォルダをローカルにコピーしてシステム環境変数に**BOOST_DIR**として追加
@@ -38,7 +40,7 @@ boost : version 1_73_0
 6. 必要な動画ファイルをコピー（ほかのマシンの中を探せば動画ファイルがあるはず）  
 ※読み込む動画ファイルは*Media.cpp:68*あたりの動画ファイルへのパスから変更できる
 ## 実行方法
-1. Kinect Serverを立ち上げる（Kinect Serverのプログラムは`https://github.com/visual-media-lab/3D_Kinect_Tracking_Server`をクローンするでも良いし、bullからコピーするでもよい。GitHubからのクローンで動作するかは確認していないのでbullからコピーするのが確実。）
+1. `RealSenseTrackingServer/realsense_tracking_server.py`を立ち上げ、プレビューが`tracking`になることを確認
 2. プログラムを実行
 3. 基板のスイッチを切り替えてバックライトを時分割モードに切り替え（この手順はいつでもいい）
 ## 主なキー入力の説明
