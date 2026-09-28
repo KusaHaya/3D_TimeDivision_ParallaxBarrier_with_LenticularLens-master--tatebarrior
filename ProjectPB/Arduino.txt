@@ -112,36 +112,17 @@ void runOneTimeDivisionCycle()
   }
 }
 
-void runTwoPhaseBlock_0()
+void runOneTimeDivisionFrame(int frameIndex)
 {
-  // 前半: 0 → 3
-  const int phaseOrder[2] = {0, 3};
+  // PCの表示順kk=0,1,2,3を、実際の点灯順0,3,2,1へ変換する。
+  const int phaseOrder[4] = {0, 3, 2, 1};
+  int phase = phaseOrder[frameIndex & 3];
 
-  for (int i = 0; i < 2; i++) {
-    int phase = phaseOrder[i];
-    cnt = phase;
-
-    onDelaySimultaneous(
-      OUTPUT_PINS[phase + 4],
-      OUTPUT_PINS[phase]
-    );
-  }
-}
-
-void runTwoPhaseBlock_2()
-{
-  // 後半: 2 → 1
-  const int phaseOrder[2] = {2, 1};
-
-  for (int i = 0; i < 2; i++) {
-    int phase = phaseOrder[i];
-    cnt = phase;
-
-    onDelaySimultaneous(
-      OUTPUT_PINS[phase + 4],
-      OUTPUT_PINS[phase]
-    );
-  }
+  cnt = phase;
+  onDelaySimultaneous(
+    OUTPUT_PINS[phase + 4],
+    OUTPUT_PINS[phase]
+  );
 }
 
 int prev = 0;
@@ -188,29 +169,17 @@ void loop()
    //   }
       break;
 
-    // --- ここからが本命の4時分割ペア制御 ---
+    // PCから各表示フレームごとに1コマンドを受け、対応する上下ペアを制御する。
   case TIME_DIV_0:
-  {
-    if (running) {
-      turnAllLightsOff();
-      runTwoPhaseBlock_0();
-    }
-    break;
-  }
-
-  case TIME_DIV_2:
-  {
-    if (running) {
-      turnAllLightsOff();
-      runTwoPhaseBlock_2();
-    }
-    break;
-  }
-
   case TIME_DIV_1:
+  case TIME_DIV_2:
   case TIME_DIV_3:
   {
-    // 今回はPCから送らない想定なので何もしない
+    if (running) {
+      int frameIndex = incomingByte - TIME_DIV_0;
+      turnAllLightsOff();
+      runOneTimeDivisionFrame(frameIndex);
+    }
     break;
   }
 

@@ -665,17 +665,16 @@ void DTimer(int totalMilliSeconds)
     glutTimerFunc(nextCallMs, DTimer, 0);
 }
 
-void SendTimeDivisionBlock02()
+void SendTimeDivisionFrame(int frameIndex)
 {
+	static const int timeDivisionCommands[4] = {
+		TIME_DIV_0, TIME_DIV_1, TIME_DIV_2, TIME_DIV_3
+	};
+
     if (!arduinoSerial.is_open()) return;
     if (running != 1) return;
 
-    if (kk == 0) {
-        SendArduinoCommand(TIME_DIV_0);
-    }
-    else if (kk == 2) {
-        SendArduinoCommand(TIME_DIV_2);
-    }
+	SendArduinoCommand(timeDivisionCommands[frameIndex & 3]);
 }
 
 void SendHeldFrame(int frameIndex)
@@ -790,8 +789,8 @@ void disp(void) {
 		holdCommandPending = false;
 	}
 	else if (!frameHoldMode) {
-		// 表示したkkに対応して、0または2だけArduinoへ送る
-		SendTimeDivisionBlock02();
+		// Send one command for every frame that has just been presented.
+		SendTimeDivisionFrame(displayedKk);
 	}
 
 	// 次フレーム用にkkを進める
