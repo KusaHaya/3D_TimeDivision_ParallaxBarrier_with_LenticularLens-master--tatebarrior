@@ -636,44 +636,6 @@ void renderInterleavedVideo() {
 	glBindVertexArray(0);
 }
 
-const double TARGET_HZ = 120.0;
-const auto TARGET_PERIOD = std::chrono::duration<double>(1.0 / TARGET_HZ);
-bool syncClockInitialized = false;
-std::chrono::steady_clock::time_point nextFrameDeadline;
-
-void DTimer(int totalMilliSeconds)
-{
-    using steady_clock = std::chrono::steady_clock;
-    const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
-    auto now = steady_clock::now();
-
-    if (!syncClockInitialized) {
-        nextFrameDeadline = now;
-        syncClockInitialized = true;
-    }
-
-    bool shouldRender = false;
-
-    while (now >= nextFrameDeadline) {
-        shouldRender = true;
-        nextFrameDeadline += targetPeriod;
-    }
-
-    if (shouldRender) {
-        if (VideoSwitch && mrk == 1 && VideoMode) {
-            VideoMode->Update(0);
-        }
-
-        glutPostRedisplay();
-    }
-
-    auto remain = nextFrameDeadline - steady_clock::now();
-    auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
-    unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
-
-    glutTimerFunc(nextCallMs, DTimer, 0);
-}
-
 void SendTimeDivisionFrame(int frameIndex)
 {
 	static const int timeDivisionCommands[4] = {
@@ -726,6 +688,13 @@ int prt = 0;
 
 void disp(void) {
 	int i, e;
+
+	// V-Sync is the frame clock. Advance video exactly once for the frame that
+	// will now be presented instead of using an independent 120 Hz timer.
+	if (!frameHoldMode && VideoSwitch && mrk == 1 && VideoMode) {
+		VideoMode->Update(0);
+	}
+
 	glDrawBuffer(GL_BACK);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_STENCIL_TEST);
@@ -763,7 +732,7 @@ void disp(void) {
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		}
 
-		// kk��DTimer()����120Hz�����X�V����
+		// kk is advanced once after each V-Sync presentation.
 	}
 
 	else {
@@ -805,6 +774,9 @@ void disp(void) {
 	// 次フレーム用にkkを進める
 	if (running && !frameHoldMode) {
 		kk = (kk + 1) % 4;
+		// Queue exactly one next draw. glutSwapBuffers() above waits for V-Sync,
+		// so display phase and Arduino command cannot drift against a timer.
+		glutPostRedisplay();
 	}
 }
 
@@ -1149,7 +1121,6 @@ int main(int argc, char ** argv) {
 
 	VideoMode = std::unique_ptr<vmlab::DrawVideo>(new vmlab::DrawVideo);
 	VideoSwitch = false;
-	glutTimerFunc(0, DTimer, 0);
 
 	init();
 	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
