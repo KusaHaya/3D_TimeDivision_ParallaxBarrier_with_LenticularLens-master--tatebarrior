@@ -759,12 +759,9 @@ void disp(void) {
 	}
 	glutSwapBuffers();
 
-	// Keep sending the selected phase while held so the backlight maintains
-	// its normal pulsed drive instead of being left continuously on.
-	if (frameHoldMode) {
-		SendHeldFrame(displayedKk);
-	}
-	else {
+	// In hold mode the Arduino keeps the selected backlight pair continuously
+	// on, so do not send any further time-division commands.
+	if (!frameHoldMode) {
 		// 表示したkkに対応して、0または2だけArduinoへ送る
 		SendTimeDivisionBlock02();
 	}
