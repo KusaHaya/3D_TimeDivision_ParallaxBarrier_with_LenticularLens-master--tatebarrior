@@ -40,10 +40,23 @@ const int offset = 1500;
 // (例： 9-12が上部、2-5が下部)
 const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
 
-// 120 Hzの1フレームは約8333us。フレーム末尾に消灯時間を残す。
-const unsigned long BACKLIGHT_ON_US = 7000;
-unsigned long backlightOnStartedAt = 0;
-bool timedBacklightOn = false;
+// 120 Hzの1フレームは約8333us。V-Sync起点で上下を時間差点灯する。
+const unsigned long TOP_ON_US = 2500;
+const unsigned long BOTTOM_SWITCH_US = 4500;
+const unsigned long BACKLIGHT_OFF_US = 7000;
+
+enum BacklightStage {
+  BACKLIGHT_IDLE,
+  WAIT_TOP_ON,
+  WAIT_BOTTOM_SWITCH,
+  WAIT_BACKLIGHT_OFF
+};
+
+unsigned long backlightFrameStartedAt = 0;
+BacklightStage backlightStage = BACKLIGHT_IDLE;
+int timedPastBottomPin = -1;
+int timedTopPin = -1;
+int timedBottomPin = -1;
 
 const float pluse_width = 1000.0 / REFRESH_RATE - offset / 1000;
 const float pluse_width_tb = 1000.0 / REFRESH_RATE ;
@@ -130,13 +143,19 @@ void runOneTimeDivisionFrame(int frameIndex)
   const int phaseOrder[4] = {0, 3, 2, 1};
   int phase = phaseOrder[frameIndex & 3];
 
-  cnt = phase;
-  PIN_PAST = -1;
+  timedPastBottomPin = PIN_PAST;
+  timedTopPin = OUTPUT_PINS[phase + 4];
+  timedBottomPin = OUTPUT_PINS[phase];
 
-  // Keep both lights on for the whole display frame. They are turned off
-  // when the next TIME_DIV command is received.
-  digitalWrite(OUTPUT_PINS[phase + 4], HIGH);
-  digitalWrite(OUTPUT_PINS[phase], HIGH);
+  turnAllLightsOff();
+  if (timedPastBottomPin >= 0) {
+    digitalWrite(timedPastBottomPin, HIGH);
+  }
+
+  cnt = phase;
+  PIN_PAST = timedBottomPin;
+  backlightFrameStartedAt = micros();
+  backlightStage = WAIT_TOP_ON;
 }
 
 int prev = 0;
@@ -156,7 +175,8 @@ void loop()
       }
       break;
     case LIGHT_EXIT:
-      timedBacklightOn = false;
+      backlightStage = BACKLIGHT_IDLE;
+      PIN_PAST = -1;
       for (int i = 0; i < 8; i++) {
         digitalWrite(OUTPUT_PINS[i], HIGH);
       }
@@ -178,8 +198,8 @@ void loop()
    //   }
       break;
 
-    // PCから各表示フレームごとに1コマンドを受け、対応する上下ペアを
-    // 次のフレームコマンドまで連続点灯する。
+    // PCから各表示フレームごとに1コマンドを受け、V-Sync起点で
+    // 前フレーム下側→現フレーム上側→現フレーム下側の順に点灯する。
   case TIME_DIV_0:
   case TIME_DIV_1:
   case TIME_DIV_2:
@@ -187,10 +207,7 @@ void loop()
   {
     if (running) {
       int frameIndex = incomingByte - TIME_DIV_0;
-      turnAllLightsOff();
       runOneTimeDivisionFrame(frameIndex);
-      backlightOnStartedAt = micros();
-      timedBacklightOn = true;
     }
     break;
   }
@@ -207,7 +224,7 @@ void loop()
     int phase = phaseOrder[frameIndex];
 
     running = false;
-    timedBacklightOn = false;
+    backlightStage = BACKLIGHT_IDLE;
     cnt = phase;
     PIN_PAST = -1;
     turnAllLightsOff();
@@ -219,6 +236,7 @@ void loop()
     case NEXT_TIMEDIVISION:
     {
     if (running) {
+        backlightStage = BACKLIGHT_IDLE;
         cnt = (cnt + 3) & 3;  // 以前の相順 0→3→2→1 を維持
         turnAllLightsOff();
         onDelaySimultaneous(OUTPUT_PINS[cnt + 4], OUTPUT_PINS[cnt]);
@@ -234,18 +252,32 @@ void loop()
       break;
     case DISABLE_TIMEDIVISION:
       running = false;
-      timedBacklightOn = false;
+      backlightStage = BACKLIGHT_IDLE;
       digitalWrite(OUTPUT_PINS[cnt], HIGH);
       break;
     }
   }
 
-  // Wait for neither the remaining frame time nor the next command here.
-  // This keeps serial reception responsive and prevents phase drift.
-  if (timedBacklightOn &&
-      (unsigned long)(micros() - backlightOnStartedAt) >= BACKLIGHT_ON_US) {
-    digitalWrite(OUTPUT_PINS[cnt + 4], LOW);
-    digitalWrite(OUTPUT_PINS[cnt], LOW);
-    timedBacklightOn = false;
+  // Non-blocking scan timing. Multiple stages may be applied in one loop if
+  // processing was briefly delayed; the next serial command remains responsive.
+  unsigned long elapsedUs = micros() - backlightFrameStartedAt;
+
+  if (backlightStage == WAIT_TOP_ON && elapsedUs >= TOP_ON_US) {
+    digitalWrite(timedTopPin, HIGH);
+    backlightStage = WAIT_BOTTOM_SWITCH;
+  }
+
+  if (backlightStage == WAIT_BOTTOM_SWITCH && elapsedUs >= BOTTOM_SWITCH_US) {
+    if (timedPastBottomPin >= 0) {
+      digitalWrite(timedPastBottomPin, LOW);
+    }
+    digitalWrite(timedBottomPin, HIGH);
+    backlightStage = WAIT_BACKLIGHT_OFF;
+  }
+
+  if (backlightStage == WAIT_BACKLIGHT_OFF && elapsedUs >= BACKLIGHT_OFF_US) {
+    digitalWrite(timedTopPin, LOW);
+    digitalWrite(timedBottomPin, LOW);
+    backlightStage = BACKLIGHT_IDLE;
   }
 }
