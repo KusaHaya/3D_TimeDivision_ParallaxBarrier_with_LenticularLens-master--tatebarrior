@@ -128,8 +128,6 @@ int displayedKk = 0; // frame currently visible on the display
 bool frameHoldMode = false;
 bool holdCommandPending = false;
 int cali_flag = 0; // calibation mode
-// int phaba = 0;
-// int pMiddleLine = 0;
 bool LiverMode = false;
 
 float caliX = 0; // head tracking base X
@@ -149,6 +147,10 @@ GLuint imageL, imageR;
 const int MiddleDefault = 3420;
 //const int MiddleDefault = 2340;
 int MiddleLine = MiddleDefault;
+int stableHaba = haba_first;
+int stableMiddleLine = MiddleDefault;
+const int HABA_DEADBAND = 4;
+const int MIDDLE_LINE_DEADBAND = 10;
 int mrk = 0;
 int eyeright = 1; // 1: �E�ډ摜��\��, 0: �E�ډ摜��\��
 int eyeleft = 1; // 1: ���ډ摜��\��, 0: ���ډ摜��\��
@@ -239,7 +241,11 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 
 		if (ht == 1) {
 			// haba, delta�̕ω��ʂɂ��Ă͎����I�ɋ��߂�
-			haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
+			int measuredHaba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
+			if (abs(measuredHaba - stableHaba) >= HABA_DEADBAND) {
+				stableHaba = measuredHaba;
+			}
+			haba = stableHaba;
 			// haba = int(haba_first * caliZ / tmpZ);
 			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX)) * 1000 / DotSubPixel;//face moves by sub-pixel units
 
@@ -253,14 +259,17 @@ void Receive(TCPClient& client, const std::function<void(boost::system::error_co
 			if (delta < 0.0)move = (int)(delta - 0.5);
 			else move = (int)(delta + 0.5);
 			//			move = (move / 3) * 3;
-			MiddleLine = MiddleDefault - move;
-			//			if (abs(pMiddleLine - MiddleLine) < 10){
-			//				MiddleLine = pMiddleLine;
-			//			}
-			//			pMiddleLine = MiddleLine;
+			int measuredMiddleLine = MiddleDefault - move;
+			if (abs(measuredMiddleLine - stableMiddleLine) >= MIDDLE_LINE_DEADBAND) {
+				stableMiddleLine = measuredMiddleLine;
+			}
+			MiddleLine = stableMiddleLine;
 		}
 		else {
 			headTrackShift = 0;
+			stableHaba = haba_first;
+			stableMiddleLine = MiddleDefault;
+			haba = stableHaba;
 			MiddleLine = MiddleDefault;
 		}
 		buffer->consume(sizeof(float) * 6);
