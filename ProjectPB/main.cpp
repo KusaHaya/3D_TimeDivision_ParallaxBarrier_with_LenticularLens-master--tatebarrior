@@ -126,6 +126,7 @@ int haba = haba_first; // phase width with 1/3 pixel (= sub-pixel)
 int kk = 0; // �������̐���p�����[�^
 int displayedKk = 0; // frame currently visible on the display
 bool frameHoldMode = false;
+bool holdCommandPending = false;
 int cali_flag = 0; // calibation mode
 // int phaba = 0;
 // int pMiddleLine = 0;
@@ -687,6 +688,19 @@ void SendHeldFrame(int frameIndex)
 	SendArduinoCommand(holdCommands[frameIndex & 3]);
 }
 
+void HoldFrameAndBacklight(int frameIndex)
+{
+	const int selectedFrame = frameIndex & 3;
+
+	frameHoldMode = true;
+	holdCommandPending = true;
+	running = 0;
+	kk = selectedFrame;
+	displayedKk = selectedFrame;
+	printf("frame hold: ON (kk = %d)\n", selectedFrame);
+	glutPostRedisplay();
+}
+
 int frame = 0;
 bool GetPic = false;
 int prt = 0;
@@ -759,9 +773,13 @@ void disp(void) {
 	}
 	glutSwapBuffers();
 
-	// In hold mode the Arduino keeps the selected backlight pair continuously
-	// on, so do not send any further time-division commands.
-	if (!frameHoldMode) {
+	// Send the hold command only after the selected display frame has been
+	// presented, then leave that backlight pair continuously on.
+	if (frameHoldMode && holdCommandPending) {
+		SendHeldFrame(displayedKk);
+		holdCommandPending = false;
+	}
+	else if (!frameHoldMode) {
 		// 表示したkkに対応して、0または2だけArduinoへ送る
 		SendTimeDivisionBlock02();
 	}
@@ -800,41 +818,33 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		break;
 	case 'q':
-		kk = 0;
-		glutDisplayFunc(disp);
+		HoldFrameAndBacklight(0);
 		break;
 	case 'w':
-		kk = 1;
-		glutDisplayFunc(disp);
+		HoldFrameAndBacklight(1);
 		break;
 	case 'e':
-		kk = 2;
-		glutDisplayFunc(disp);
+		HoldFrameAndBacklight(2);
 		break;
 	case 'r':
-		kk = 3;
-		glutDisplayFunc(disp);
+		HoldFrameAndBacklight(3);
 		break;
 	case 't':
 		if (!frameHoldMode) {
-			// kk already points to the next frame after swap, so restore the
-			// frame that is actually visible before entering hold mode.
-			frameHoldMode = true;
-			running = 0;
-			kk = displayedKk;
-			SendArduinoCommand(ENABLE_TIMEDIVISION);
-			SendHeldFrame(displayedKk);
-			printf("frame hold: ON (kk = %d)\n", displayedKk);
+			// kk already points to the next frame after swap, so hold the
+			// frame that is actually visible instead.
+			HoldFrameAndBacklight(displayedKk);
 		}
 		else {
 			frameHoldMode = false;
+			holdCommandPending = false;
 			running = 1;
 			kk = 0;
 			SendArduinoCommand(RESET_SYNC);
 			SendArduinoCommand(ENABLE_TIMEDIVISION);
 			printf("frame hold: OFF (restart from kk = 0)\n");
+			glutPostRedisplay();
 		}
-		glutPostRedisplay();
 		break;
 	case 'o':
 		SHIFT += 1;
