@@ -40,6 +40,11 @@ const int offset = 1500;
 // (例： 9-12が上部、2-5が下部)
 const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
 
+// 120 Hzの1フレームは約8333us。フレーム末尾に消灯時間を残す。
+const unsigned long BACKLIGHT_ON_US = 7000;
+unsigned long backlightOnStartedAt = 0;
+bool timedBacklightOn = false;
+
 const float pluse_width = 1000.0 / REFRESH_RATE - offset / 1000;
 const float pluse_width_tb = 1000.0 / REFRESH_RATE ;
 const float delay_time = (100.0 - HIGH_RATE) * pluse_width / 100 / 2;
@@ -55,6 +60,13 @@ void setup()
   for (int i = 0; i < 8; i++)
   {
     digitalWrite(OUTPUT_PINS[i], HIGH);
+  }
+}
+
+void turnAllLightsOff()
+{
+  for (int i = 0; i < 8; i++) {
+    digitalWrite(OUTPUT_PINS[i], LOW);
   }
 }
 
@@ -136,12 +148,6 @@ void loop()
   {
     int incomingByte = Serial.read();
 
-    auto turnAllLightsOff = []() {
-      for (int i = 0; i < 8; i++) {
-        digitalWrite(OUTPUT_PINS[i], LOW);
-      }
-    };
-
     switch (incomingByte)
     {
     case CONNECTION_BEGIN:
@@ -150,6 +156,7 @@ void loop()
       }
       break;
     case LIGHT_EXIT:
+      timedBacklightOn = false;
       for (int i = 0; i < 8; i++) {
         digitalWrite(OUTPUT_PINS[i], HIGH);
       }
@@ -182,6 +189,8 @@ void loop()
       int frameIndex = incomingByte - TIME_DIV_0;
       turnAllLightsOff();
       runOneTimeDivisionFrame(frameIndex);
+      backlightOnStartedAt = micros();
+      timedBacklightOn = true;
     }
     break;
   }
@@ -198,6 +207,7 @@ void loop()
     int phase = phaseOrder[frameIndex];
 
     running = false;
+    timedBacklightOn = false;
     cnt = phase;
     PIN_PAST = -1;
     turnAllLightsOff();
@@ -224,8 +234,18 @@ void loop()
       break;
     case DISABLE_TIMEDIVISION:
       running = false;
+      timedBacklightOn = false;
       digitalWrite(OUTPUT_PINS[cnt], HIGH);
       break;
     }
+  }
+
+  // Wait for neither the remaining frame time nor the next command here.
+  // This keeps serial reception responsive and prevents phase drift.
+  if (timedBacklightOn &&
+      (unsigned long)(micros() - backlightOnStartedAt) >= BACKLIGHT_ON_US) {
+    digitalWrite(OUTPUT_PINS[cnt + 4], LOW);
+    digitalWrite(OUTPUT_PINS[cnt], LOW);
+    timedBacklightOn = false;
   }
 }
