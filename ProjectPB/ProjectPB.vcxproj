@@ -95,30 +95,30 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(KINECTSDK10_DIR)\inc;$(FTSDK_DIR)inc</IncludePath>
-    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86);$(FTSDK_DIR)Lib\x86;$(KINECTSDK10_DIR)\Lib\x86</LibraryPath>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath)</IncludePath>
+    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(KINECTSDK10_DIR)\inc;$(FTSDK_DIR)inc</IncludePath>
-    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86);$(FTSDK_DIR)Lib\x86;$(KINECTSDK10_DIR)\Lib\x86</LibraryPath>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath)</IncludePath>
+    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
-    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(KINECTSDK10_DIR)\inc;$(FTSDK_DIR)inc</IncludePath>
-    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86);$(FTSDK_DIR)Lib\x86;$(KINECTSDK10_DIR)\Lib\x86</LibraryPath>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath)</IncludePath>
+    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(KINECTSDK10_DIR)\inc;$(FTSDK_DIR)inc;$(VC_VS_IncludePath);$(VC_ATLMFC_IncludePath);$(VC_VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)Library\include</IncludePath>
-    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x64);$(FTSDK_DIR)Lib\x64;$(KINECTSDK10_DIR)\Lib\x64;$(VC_VS_LibraryPath_VC_VS_x64);$(VC_LibraryPath_ATL_x64);$(VC_LibraryPath_VC_x64);$(UniversalCRT_LibraryPath_x64);$(SolutionDir)Library\lib</LibraryPath>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(VC_VS_IncludePath);$(VC_ATLMFC_IncludePath);$(VC_VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)Library\include</IncludePath>
+    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x64);$(VC_VS_LibraryPath_VC_VS_x64);$(VC_LibraryPath_ATL_x64);$(VC_LibraryPath_VC_x64);$(UniversalCRT_LibraryPath_x64);$(SolutionDir)Library\lib</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(KINECTSDK10_DIR)\inc;$(FTSDK_DIR)inc;$(VC_VS_IncludePath);$(VC_ATLMFC_IncludePath);$(VC_VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)Library\include</IncludePath>
-    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x64);$(FTSDK_DIR)Lib\x64;$(KINECTSDK10_DIR)\Lib\x64;$(VC_VS_LibraryPath_VC_VS_x64);$(VC_LibraryPath_ATL_x64);$(VC_LibraryPath_VC_x64);$(UniversalCRT_LibraryPath_x64);$(SolutionDir)Library\lib</LibraryPath>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(VC_VS_IncludePath);$(VC_ATLMFC_IncludePath);$(VC_VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)Library\include</IncludePath>
+    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x64);$(VC_VS_LibraryPath_VC_VS_x64);$(VC_LibraryPath_ATL_x64);$(VC_LibraryPath_VC_x64);$(UniversalCRT_LibraryPath_x64);$(SolutionDir)Library\lib</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
-    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(KINECTSDK10_DIR)\inc;$(FTSDK_DIR)inc;$(VC_VS_IncludePath);$(VC_ATLMFC_IncludePath);$(VC_VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)Library\include</IncludePath>
-    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86);$(FTSDK_DIR)Lib\x86;$(KINECTSDK10_DIR)\Lib\x86;$(VC_VS_LibraryPath_VC_VS_x86);$(VC_LibraryPath_ATL_x86);$(VC_LibraryPath_VC_x86);$(UniversalCRT_LibraryPath_x86);$(SolutionDir)Library\lib</LibraryPath>
+    <IncludePath>$(VCInstallDir)include;$(VCInstallDir)atlmfc\include;$(WindowsSDK_IncludePath);$(VC_VS_IncludePath);$(VC_ATLMFC_IncludePath);$(VC_VC_IncludePath);$(UniversalCRT_IncludePath);$(SolutionDir)Library\include</IncludePath>
+    <LibraryPath>$(VCInstallDir)lib;$(VCInstallDir)atlmfc\lib;$(WindowsSDK_LibraryPath_x86);$(VC_VS_LibraryPath_VC_VS_x86);$(VC_LibraryPath_ATL_x86);$(VC_LibraryPath_VC_x86);$(UniversalCRT_LibraryPath_x86);$(SolutionDir)Library\lib</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -262,8 +262,6 @@
     <None Include="sbs_interleave.frag">
       <FileType>CppCode</FileType>
     </None>
-    <ClCompile Include="TCPClient.cpp" />
-    <ClCompile Include="TCPConnector.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Timer.cpp" />
   </ItemGroup>
@@ -276,8 +274,7 @@
   <ItemGroup>
     <ClInclude Include="DrawVideo.h" />
     <ClInclude Include="Media.h" />
-    <ClInclude Include="TCPClient.h" />
-    <ClInclude Include="TCPConnector.h" />
+    <ClInclude Include="RealSenseTrackingClient.h" />
     <ClInclude Include="Texture.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -1,7 +1,8 @@
 """RealSense eye-position server compatible with ProjectPB's Kinect TCP protocol.
 
 The renderer expects six little-endian float32 values on 127.0.0.1:30000:
-left-eye XYZ followed by right-eye XYZ, in metres and Kinect camera axes.
+image-left eye XYZ followed by image-right eye XYZ, in metres and Kinect axes.
+Six NaNs indicate tracking loss to the updated renderer.
 """
 
 from __future__ import annotations
@@ -9,7 +10,6 @@ from __future__ import annotations
 import argparse
 import socket
 import struct
-import time
 from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 
@@ -72,7 +72,7 @@ def detect_eyes(
     faces = face_classifier.detectMultiScale(
         gray, scaleFactor=1.1, minNeighbors=5, minSize=(100, 100)
     )
-    if len(faces) == 0:
+    if len(faces) != 1:
         return None, None
 
     x, y, w, h = max(faces, key=lambda rect: int(rect[2]) * int(rect[3]))
@@ -123,7 +123,7 @@ def median_depth_metres(
     y0, y1 = max(0, y - radius), min(height, y + radius + 1)
     values = depth_image[y0:y1, x0:x1].astype(np.float32) * depth_scale
     valid = values[(values > 0.10) & (values < 4.0)]
-    if valid.size == 0:
+    if valid.size < max(9, values.size // 2):
         return None
     return float(np.median(valid))
 
@@ -157,8 +157,41 @@ def try_accept(listener: socket.socket) -> Optional[socket.socket]:
     except BlockingIOError:
         return None
     client.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    client.settimeout(0.1)  # A stalled renderer must not freeze camera acquisition.
     print(f"ProjectPB connected from {address[0]}:{address[1]}")
     return client
+
+
+def eye_coordinates(depth_image, eye_pixels, depth_scale, intrinsics):
+    """Return a valid image-left/image-right pair, or None (no stale estimates)."""
+    if eye_pixels is None:
+        return None
+    points = []
+    for pixel in eye_pixels:
+        depth = median_depth_metres(depth_image, pixel, depth_scale)
+        if depth is None:
+            return None
+        points.extend(kinect_compatible_point(intrinsics, pixel, depth))
+    result = np.asarray(points, dtype=np.float32)
+    separation = np.linalg.norm(result[:3] - result[3:])
+    # Reject false eye pairs and depth samples on the background.
+    if not np.all(np.isfinite(result)) or not 0.035 <= separation <= 0.09:
+        return None
+    return result
+
+
+def send_coordinates(client, coordinates):
+    if client is None:
+        return None
+    values = coordinates if coordinates is not None else [float("nan")] * 6
+    try:
+        client.sendall(struct.pack("<6f", *values))
+        return client
+    except OSError:
+        # A partial timed-out packet cannot be reused: discard the connection.
+        client.close()
+        print("ProjectPB disconnected; waiting for reconnection ...")
+        return None
 
 
 def run(args: argparse.Namespace) -> None:
@@ -175,14 +208,13 @@ def run(args: argparse.Namespace) -> None:
     config = rs.config()
     config.enable_stream(rs.stream.depth, args.width, args.height, rs.format.z16, args.fps)
     config.enable_stream(rs.stream.color, args.width, args.height, rs.format.bgr8, args.fps)
-    profile = pipeline.start(config)
-    depth_sensor = profile.get_device().first_depth_sensor()
-    depth_scale = float(depth_sensor.get_depth_scale())
-    align_to_color = rs.align(rs.stream.color)
-
-    last_detection = 0.0
-    print("RealSense started. Press Q in the preview window to quit.")
+    started = False
     try:
+        profile = pipeline.start(config)
+        started = True
+        depth_scale = float(profile.get_device().first_depth_sensor().get_depth_scale())
+        align_to_color = rs.align(rs.stream.color)
+        print("RealSense started. Press Q in the preview window to quit.")
         while True:
             if client is None:
                 client = try_accept(listener)
@@ -201,31 +233,20 @@ def run(args: argparse.Namespace) -> None:
                 x, y, w, h = face
                 cv2.rectangle(color_image, (x, y), (x + w, y + h), (0, 180, 0), 2)
 
-            if eye_pixels is not None:
-                left_pixel, right_pixel = eye_pixels
-                left_depth = median_depth_metres(depth_image, left_pixel, depth_scale)
-                right_depth = median_depth_metres(depth_image, right_pixel, depth_scale)
-                if left_depth is not None and right_depth is not None:
-                    intrinsics = depth_frame.profile.as_video_stream_profile().intrinsics
-                    left = kinect_compatible_point(intrinsics, left_pixel, left_depth)
-                    right = kinect_compatible_point(intrinsics, right_pixel, right_depth)
-                    coordinates = smoother.update((*left, *right))
-                    last_detection = time.monotonic()
-
-                    if client is not None:
-                        try:
-                            client.sendall(struct.pack("<6f", *coordinates.tolist()))
-                        except (BrokenPipeError, ConnectionResetError, OSError):
-                            client.close()
-                            client = None
-                            print("ProjectPB disconnected; waiting for reconnection ...")
-
-                    if not args.no_preview:
-                        for point in eye_pixels:
-                            cv2.circle(color_image, point, 5, (0, 0, 255), -1)
+            intrinsics = depth_frame.profile.as_video_stream_profile().intrinsics
+            measured = eye_coordinates(depth_image, eye_pixels, depth_scale, intrinsics)
+            coordinates = None
+            if measured is not None:
+                coordinates = smoother.update(measured)
+                if not args.no_preview:
+                    for point in eye_pixels:
+                        cv2.circle(color_image, point, 5, (0, 0, 255), -1)
+            else:
+                smoother.value = None
+            client = send_coordinates(client, coordinates)
 
             if not args.no_preview:
-                state = "tracking" if time.monotonic() - last_detection < 0.5 else "searching"
+                state = "tracking" if coordinates is not None else "searching"
                 cv2.putText(
                     color_image,
                     state,
@@ -238,11 +259,14 @@ def run(args: argparse.Namespace) -> None:
                 cv2.imshow("RealSense Tracking Server", color_image)
                 if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
                     break
+                if cv2.getWindowProperty("RealSense Tracking Server", cv2.WND_PROP_VISIBLE) < 1:
+                    break
     finally:
         if client is not None:
             client.close()
         listener.close()
-        pipeline.stop()
+        if started:
+            pipeline.stop()
         cv2.destroyAllWindows()
 
 

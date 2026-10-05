@@ -7,7 +7,7 @@
 
 #include <iostream>
 #include<fstream>
-#include "TCPClient.h"
+#include "RealSenseTrackingClient.h"
 #include <boost/asio.hpp>
 #include "boost/format.hpp"
 #include <windows.h>
@@ -202,61 +202,58 @@ void SendArduinoCommand(int command) {
 	}
 }
 
-void Receive(TCPClient& client, const std::function<void(boost::system::error_code, std::size_t)>& callback)
+RealSenseTrackingClient trackingClient;
+
+void UpdateTracking()
 {
-	auto buffer = std::make_shared<boost::asio::streambuf>(sizeof(float) * 6);
-	client.RecieveAsync(buffer, [&, buffer](boost::system::error_code e, size_t l)
-	{
-		const float* datas = boost::asio::buffer_cast<const float*>(buffer->data());
-		if (cali_flag == 1) {
-			caliX = (datas[3 * 0 + 0] + datas[3 * 1 + 0]) / 2 + PosX;
-			caliY = COS * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + SIN * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 + PosY;
-			caliZ = COS * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 - SIN * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + PosZ;
-			ht = 1;
-			printf("head-tracking: ON\n");
-			cali_flag = 0;
-		}
-		else {
-			tmpX = (datas[3 * 0 + 0] + datas[3 * 1 + 0]) / 2 + PosX;
-			tmpY = COS * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + SIN * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 + PosY;
-			tmpZ = COS * (datas[3 * 0 + 2] + datas[3 * 1 + 2]) / 2 - SIN * (datas[3 * 0 + 1] + datas[3 * 1 + 1]) / 2 + PosZ;
-			eyeposx[0] = 1000 * (datas[3 * 1 + 0] + PosX);
-			eyeposx[1] = 1000 * (datas[3 * 0 + 0] + PosX);
-			eyeposy[0] = 1000 * (COS*datas[3 * 1 + 1] + SIN * datas[3 * 1 + 2] + PosY);
-			eyeposy[1] = 1000 * (COS*datas[3 * 0 + 1] + SIN * datas[3 * 0 + 2] + PosY);
-			eyeposz[0] = 1000 * (COS*datas[3 * 1 + 2] + SIN * datas[3 * 1 + 1] + PosZ);
-			eyeposz[1] = 1000 * (COS*datas[3 * 0 + 2] + SIN * datas[3 * 0 + 1] + PosZ);
-		}
-
-		if (ht == 1) {
-			// haba, delta�̕ω��ʂɂ��Ă͎����I�ɋ��߂�
-			haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
-			// haba = int(haba_first * caliZ / tmpZ);
-			delta = 0.895 / (tmpZ - 0.3245) * ((tmpX - caliX)) * 1000 / DotSubPixel;//face moves by sub-pixel units
-
-			headTrackShift = delta;
-			//�f�o�b�O�p
-			//printf("Calibrated Z=%.3f, Current Z=%.3f -> Calculated Shift=%.2f\n", caliZ, tmpZ, headTrackShift);
-			printf("CALIB(X:%.2f, Z:%.2f), CURRENT(X:%.2f, Z:%.2f) ---> DELTA: %.2f\n",
-				caliX, caliZ, tmpX, tmpZ, delta);
-
-			int move = 0;
-			if (delta < 0.0)move = (int)(delta - 0.5);
-			else move = (int)(delta + 0.5);
-			//			move = (move / 3) * 3;
-			MiddleLine = MiddleDefault - move;
-			//			if (abs(pMiddleLine - MiddleLine) < 10){
-			//				MiddleLine = pMiddleLine;
-			//			}
-			//			pMiddleLine = MiddleLine;
-		}
-		else {
-			headTrackShift = 0;
-			MiddleLine = MiddleDefault;
-		}
-		buffer->consume(sizeof(float) * 6);
-		Receive(client, callback);
-	});
+    std::array<float, 6> datas;
+    if (!trackingClient.Poll(datas)) {
+        if (ht) {
+            printf("RealSense tracking lost. Press h after reacquisition.\n");
+            ht = 0;
+            cali_flag = 0;
+            haba = haba_first;
+        }
+        headTrackShift = 0;
+        MiddleLine = MiddleDefault;
+        return;
+    }
+    tmpX = (datas[0] + datas[3]) / 2 + PosX;
+    tmpY = COS * (datas[1] + datas[4]) / 2 + SIN * (datas[2] + datas[5]) / 2 + PosY;
+    tmpZ = COS * (datas[2] + datas[5]) / 2 - SIN * (datas[1] + datas[4]) / 2 + PosZ;
+    // Guard the existing barrier equation's singularity before calibration.
+    if (std::abs(tmpZ - 0.3245f) < 0.02f) {
+        ht = 0;
+        cali_flag = 0;
+        haba = haba_first;
+        headTrackShift = 0;
+        MiddleLine = MiddleDefault;
+        return;
+    }
+    if (cali_flag == 1) {
+        caliX = tmpX;
+        caliY = tmpY;
+        caliZ = tmpZ;
+        ht = 1;
+        cali_flag = 0;
+        printf("RealSense head-tracking: ON\n");
+    }
+    for (int eye = 0; eye < 2; ++eye) {
+        const int index = (1 - eye) * 3;
+        eyeposx[eye] = 1000 * (datas[index] + PosX);
+        eyeposy[eye] = 1000 * (COS * datas[index + 1] + SIN * datas[index + 2] + PosY);
+        eyeposz[eye] = 1000 * (COS * datas[index + 2] - SIN * datas[index + 1] + PosZ);
+    }
+    if (ht == 1) {
+        haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
+        delta = 0.895 / (tmpZ - 0.3245) * (tmpX - caliX) * 1000 / DotSubPixel;
+        headTrackShift = delta;
+        const int move = delta < 0.0 ? (int)(delta - 0.5) : (int)(delta + 0.5);
+        MiddleLine = MiddleDefault - move;
+    } else {
+        headTrackShift = 0;
+        MiddleLine = MiddleDefault;
+    }
 }
 
 int ppm_reader(char *filename, unsigned char *pimage)
@@ -675,6 +672,7 @@ int prt = 0;
 
 
 void disp(void) {
+	UpdateTracking();
 	int i, e;
 	glDrawBuffer(GL_BACK);
 	glEnable(GL_DEPTH_TEST);
@@ -1078,7 +1076,6 @@ int main(int argc, char ** argv) {
 	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
 	SendArduinoCommand(RESET_SYNC);
 	SendArduinoCommand(ENABLE_TIMEDIVISION);
-	TCPClient client("127.0.0.1", 30000);
 	glutInit(&argc, argv);
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(IM_W, IM_H);
@@ -1091,8 +1088,6 @@ int main(int argc, char ** argv) {
 	glutTimerFunc(0, DTimer, 0);
 
 	init();
-	std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-	Receive(client, [](boost::system::error_code e, size_t) { std::cout << e.message() << std::endl; });
 	glutDisplayFunc(disp);
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);
@@ -1100,7 +1095,6 @@ int main(int argc, char ** argv) {
 	//glutIdleFunc(disp);
 
 	glutMainLoop();
-	client.Close();
 	timeEndPeriod(1);
 
 	glDeleteTextures(1, &imageL);
