@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TrackingDepsDir Condition="'$(TrackingDepsDir)'==''">$(SolutionDir)vcpkg_installed\x64-windows</TrackingDepsDir>
+    <TrackingLibDir>$(TrackingDepsDir)\lib</TrackingLibDir>
+    <TrackingBinDir>$(TrackingDepsDir)\bin</TrackingBinDir>
+    <TrackingLibDir Condition="'$(Configuration)'=='Debug'">$(TrackingDepsDir)\debug\lib</TrackingLibDir>
+    <TrackingBinDir Condition="'$(Configuration)'=='Debug'">$(TrackingDepsDir)\debug\bin</TrackingBinDir>
+    <TrackingModelDir>$(MSBuildProjectDirectory)\..\NativeTracking\models</TrackingModelDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <TrackingLibraries Include="$(TrackingLibDir)\opencv_*.lib;$(TrackingLibDir)\realsense2*.lib" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TrackingLinkLibraries>@(TrackingLibraries)</TrackingLinkLibraries>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(TrackingDepsDir)\include;$(TrackingDepsDir)\include\opencv4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>$(TrackingLinkLibraries);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="CheckRealSenseDependencies" BeforeTargets="ClCompile">
+    <Error Condition="'$(Platform)'!='x64'" Text="RealSense tracking requires the x64 configuration." />
+    <Error Condition="!Exists('$(TrackingDepsDir)\include\librealsense2\rs.hpp') or !Exists('$(TrackingDepsDir)\include\opencv4\opencv2\objdetect.hpp')" Text="Install vcpkg dependencies or set TrackingDepsDir. See NativeTracking/README.md." />
+  </Target>
+  <Target Name="PrepareTrackingModels">
+    <DownloadFile Condition="!Exists('$(TrackingModelDir)\haarcascade_frontalface_default.xml')" SourceUrl="https://raw.githubusercontent.com/opencv/opencv/4.14.0/data/haarcascades/haarcascade_frontalface_default.xml" DestinationFolder="$(TrackingModelDir)" />
+    <DownloadFile Condition="!Exists('$(TrackingModelDir)\haarcascade_eye_tree_eyeglasses.xml')" SourceUrl="https://raw.githubusercontent.com/opencv/opencv/4.14.0/data/haarcascades/haarcascade_eye_tree_eyeglasses.xml" DestinationFolder="$(TrackingModelDir)" />
+    <GetFileHash Files="$(TrackingModelDir)\haarcascade_frontalface_default.xml" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="TrackingFaceHash" />
+    </GetFileHash>
+    <GetFileHash Files="$(TrackingModelDir)\haarcascade_eye_tree_eyeglasses.xml" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="TrackingEyeHash" />
+    </GetFileHash>
+    <Error Condition="'$(TrackingFaceHash)'!='0F7D4527844EB514D4A4948E822DA90FBB16A34A0BBBBC6ADC6498747A5AAFB0' or '$(TrackingEyeHash)'!='E32F9C67935C33E9D1331EB14FA58554FF17835C03742663BCB97A892E936A57'" Text="Tracking model checksum mismatch. Remove the downloaded XML files in NativeTracking/models and rebuild." />
+  </Target>
+  <Target Name="CopyRealSenseRuntime" AfterTargets="Build" DependsOnTargets="PrepareTrackingModels">
+    <ItemGroup>
+      <TrackingDlls Include="$(TrackingBinDir)\*.dll" />
+      <TrackingModels Include="$(TrackingModelDir)\*.xml" />
+    </ItemGroup>
+    <Copy SourceFiles="@(TrackingDlls)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(TrackingModels)" DestinationFolder="$(OutDir)models" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

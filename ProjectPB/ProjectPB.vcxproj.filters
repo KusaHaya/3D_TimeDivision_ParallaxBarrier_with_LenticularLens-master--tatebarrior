@@ -18,10 +18,7 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TCPClient.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="TCPConnector.cpp">
+    <ClCompile Include="RealSenseTracker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Media.cpp">
@@ -47,10 +44,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="TCPClient.h">
+    <ClInclude Include="RealSenseTracker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TCPConnector.h">
+    <ClInclude Include="RealSenseTrackingMath.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Media.h">

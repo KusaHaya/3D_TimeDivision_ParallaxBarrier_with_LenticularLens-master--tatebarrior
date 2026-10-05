@@ -7,7 +7,7 @@
 
 #include <iostream>
 #include<fstream>
-#include "RealSenseTrackingClient.h"
+#include "RealSenseTracker.h"
 #include <boost/asio.hpp>
 #include "boost/format.hpp"
 #include <windows.h>
@@ -202,7 +202,7 @@ void SendArduinoCommand(int command) {
 	}
 }
 
-RealSenseTrackingClient trackingClient;
+RealSenseTracker trackingClient;
 
 void UpdateTracking()
 {
@@ -1088,6 +1088,16 @@ int main(int argc, char ** argv) {
 	glutTimerFunc(0, DTimer, 0);
 
 	init();
+    // Resolve models relative to the executable, not Visual Studio's working directory.
+    char executable[MAX_PATH];
+    const DWORD length = GetModuleFileNameA(nullptr, executable, MAX_PATH);
+    if (length > 0 && length < MAX_PATH) {
+        const std::string path(executable, length);
+        const auto slash = path.find_last_of("/\\");
+        trackingClient.Start(path.substr(0, slash) + "/models");
+    } else {
+        std::cerr << "Cannot resolve RealSense model directory. Tracking disabled.\n";
+    }
 	glutDisplayFunc(disp);
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);
@@ -1095,6 +1105,7 @@ int main(int argc, char ** argv) {
 	//glutIdleFunc(disp);
 
 	glutMainLoop();
+	trackingClient.Stop();
 	timeEndPeriod(1);
 
 	glDeleteTextures(1, &imageL);

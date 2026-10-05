@@ -1,10 +1,10 @@
 # このリポジトリについて
 レンチキュラレンズを使った時分割パララックスバリアシステムのプログラム 
 
-この `realsense` ブランチでは、RealSense D435の両眼座標をPythonサーバーから
-Visual Studioの描画プログラムへ送ります。Kinect Server / Kinect SDKは不要です。
-導入・起動・カメラ配置の調整は [RealSense用手順](RealSenseTrackingServer/README.md) を参照してください。
-サーバーと描画プログラムをこのブランチの組み合わせで使用し、顔を検出したら `h` で基準位置を設定します。
+この `realsense` ブランチでは、C++の描画プログラム内でRealSense D435を直接起動します。
+PythonサーバーやKinect SDKは不要です。導入手順は [NativeTracking/README.md](NativeTracking/README.md) を参照してください。
+計測は別スレッドで動作し、顔を検出したら `h` で基準位置を設定します。
+
 ## 目次
 1. [各ブランチの説明](#各ブランチの説明)
 2. [環境](#環境)
@@ -23,7 +23,7 @@ boost : version 1_73_0
 ## 環境構築
 1. Intel RealSense SDK 2.0のインストール  
    RealSense ViewerでColorとDepthを同時に取得できることを確認する。  
-   ヘッドトラッキングサーバーの導入方法は[RealSenseTrackingServer/README.md](RealSenseTrackingServer/README.md)を参照。
+   C++組み込みトラッキングの導入方法は[NativeTracking/README.md](NativeTracking/README.md)を参照。
 2. boostの設定
     - boost1_58_0  
     bullに中のビルド済みboost1_58_0のフォルダをローカルにコピーしてシステム環境変数に**BOOST_DIR**として追加
@@ -34,7 +34,7 @@ boost : version 1_73_0
     bullにあるインストーラとライセンスからインストール
     - 2017  
     [ダウンロードページ](https://visualstudio.microsoft.com/ja/vs/older-downloads/)からVisual Studio Community 2017をインストール  
-    ログインアカウントは研究室のMicrosoftアカウント(vmlab_2020@outlook.jp)を使えばよい
+    ログインには利用可能なMicrosoftアカウントを使用する。
 4. このリポジトリをクローン
 5. 不足しているファイルをコピー  
 ※.gitignoreによって*.dllはgitの管理下にないのでbullからコピーする必要がある。  
@@ -45,8 +45,8 @@ boost : version 1_73_0
 6. 必要な動画ファイルをコピー（ほかのマシンの中を探せば動画ファイルがあるはず）  
 ※読み込む動画ファイルは*Media.cpp:68*あたりの動画ファイルへのパスから変更できる
 ## 実行方法
-1. `RealSenseTrackingServer/realsense_tracking_server.py`を立ち上げ、プレビューが`tracking`になることを確認
-2. プログラムを実行
+1. D435を接続し、RealSense ViewerとPythonサーバーを終了する
+2. プログラムを実行（内部でD435を開始）。顔を正面に向けてhキーで基準位置を設定する
 3. 基板のスイッチを切り替えてバックライトを時分割モードに切り替え（この手順はいつでもいい）
 ## 主なキー入力の説明
 | 入力キー | 動作 |

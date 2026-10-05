@@ -249,6 +249,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="RealSenseTracker.cpp" />
     <ClCompile Include="DrawVideo.cpp" />
     <ClCompile Include="main.cpp">
       <AdditionalIncludeDirectories Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">C:\boost_1_73_0;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -274,9 +275,11 @@
   <ItemGroup>
     <ClInclude Include="DrawVideo.h" />
     <ClInclude Include="Media.h" />
-    <ClInclude Include="RealSenseTrackingClient.h" />
+    <ClInclude Include="RealSenseTracker.h" />
+    <ClInclude Include="RealSenseTrackingMath.h" />
     <ClInclude Include="Texture.h" />
   </ItemGroup>
+  <Import Project="RealSenseTracking.props" />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\freeglut.redist.2.8.1.15\build\native\freeglut.redist.targets" Condition="Exists('..\packages\freeglut.redist.2.8.1.15\build\native\freeglut.redist.targets')" />
