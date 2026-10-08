@@ -1,0 +1,59 @@
+diff --git a/ProjectPB/Media.cpp b/ProjectPB/Media.cpp
+index 240626e..904349f 100644
+--- a/ProjectPB/Media.cpp
++++ b/ProjectPB/Media.cpp
+@@ -1,8 +1,10 @@
++#define _CRT_SECURE_NO_WARNINGS
+ #include "Media.h"
+ 
+ #include <iostream>
+ #include <string>
+ #include <fstream>
++#include <cstdlib>
+ 
+ 
+ Uint8*	gAudioChunk;
+@@ -65,7 +67,9 @@ namespace vmlab
+ 		printf("Start Capture!");
+ 		bool GetDevice = false;
+ 
+-		if (avformat_open_input(&pFormatCtx, "C:/avater.mp4", NULL, NULL) != 0) {
++        const char* videoPath = std::getenv("PROJECTPB_VIDEO");
++        if (!videoPath || !*videoPath) videoPath = "./media/avater.mp4";
++        if (avformat_open_input(&pFormatCtx, videoPath, NULL, NULL) != 0) {
+ 			//		if (avformat_open_input(&pFormatCtx, "C:/All_Movie.mp4", NULL, NULL) != 0){
+ 			//		if (avformat_open_input(&pFormatCtx, "C:/bigt.mp4", NULL, NULL) != 0){
+ 			//		if (avformat_open_input(&pFormatCtx, "C:/tombraider_origin.mp4", NULL, NULL) != 0){
+diff --git a/ProjectPB/main.cpp b/ProjectPB/main.cpp
+index 2abd2fb..d62cc8d 100644
+--- a/ProjectPB/main.cpp
++++ b/ProjectPB/main.cpp
+@@ -2,6 +2,7 @@
+ #define NOMINMAX
+ 
+ #include <algorithm>
++#include <cstdlib>
+ #include <iostream>
+ #include <fstream>
+ 
+@@ -1072,8 +1073,18 @@ int main(int argc, char ** argv) {
+ 	}
+ 
+ 
+-	arduinoSerial.open("COM3"); // Arduino�̃|�[�g���ɍ��킹�ĕύXCOm1�̓f�o�b�O�p
+-	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
++    const char* serialPort = std::getenv("PROJECTPB_SERIAL_PORT");
++    if (!serialPort || !*serialPort) serialPort = "COM3";
++    boost::system::error_code serialError;
++    arduinoSerial.open(serialPort, serialError);
++    if (!serialError)
++        arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200), serialError);
++    if (serialError) {
++        std::cerr << "Cannot initialize Arduino on " << serialPort << ": "
++                  << serialError.message() << "\nEdit PROJECTPB_SERIAL_PORT in Start.cmd.\n";
++        timeEndPeriod(1);
++        return 1;
++    }
+ 	SendArduinoCommand(RESET_SYNC);
+ 	SendArduinoCommand(ENABLE_TIMEDIVISION);
+ 	glutInit(&argc, argv);

@@ -1,0 +1,242 @@
+[
+  {
+    "file": "ProjectPB Slanted barrier test.ver.exe",
+    "bytes": 161280,
+    "sha256": "09945b480a0e5d7230eaeba71c148b37b549d01678b8a312499ac9586cfc6536"
+  },
+  {
+    "file": "avcodec-58.dll",
+    "bytes": 44957184,
+    "sha256": "c841ef03cf41d146a50b5c2a4b650f9a751ff8adfe655cb840e12a808e6009dd"
+  },
+  {
+    "file": "avdevice-58.dll",
+    "bytes": 2752512,
+    "sha256": "52629f8a08219d3b969b715e3ae773dfe82f1a54931a7897c3572c7dd062f218"
+  },
+  {
+    "file": "avfilter-7.dll",
+    "bytes": 10887168,
+    "sha256": "95fc6ea8490a40b55af8f23f19fb7b7144fe09dd32ab55c4ec870049ef000e90"
+  },
+  {
+    "file": "avformat-58.dll",
+    "bytes": 11342848,
+    "sha256": "59132d2bd0700fbd6e1712cf6f028799a3038bac83b19c299b58e956f4ca93d0"
+  },
+  {
+    "file": "avutil-56.dll",
+    "bytes": 1058304,
+    "sha256": "e2684e6cdb73aaab0139f61e2f234a37274a15860befc686fd3aa5a53d2d86a8"
+  },
+  {
+    "file": "concrt140.dll",
+    "bytes": 374200,
+    "sha256": "54716f0738af891f283d213b5c8d11b25896bb8ee3097d301eae718560cf974e"
+  },
+  {
+    "file": "freeglut.dll",
+    "bytes": 229376,
+    "sha256": "cf62555f14d64fac1d650e1a24c86465b70ca410c3d6942fce2e6f25672490c7"
+  },
+  {
+    "file": "glew32.dll",
+    "bytes": 364032,
+    "sha256": "e80dc7ebe2aa9d7cec9466328f63aef530cc754f1c9dfc714261c69f4228ea65"
+  },
+  {
+    "file": "lz4.dll",
+    "bytes": 126464,
+    "sha256": "6e0d0ec11479ca08e7d22e7ee8c4df0e0ebcb75a8faecf74ca88be5f7a0bc083"
+  },
+  {
+    "file": "msvcp140.dll",
+    "bytes": 643512,
+    "sha256": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca"
+  },
+  {
+    "file": "opencv_calib3d4.dll",
+    "bytes": 2466304,
+    "sha256": "27a0979f81673c95d131841f3166f6f59ff9650550a3a5727141111d253fd3bd"
+  },
+  {
+    "file": "opencv_core4.dll",
+    "bytes": 2278912,
+    "sha256": "ca1e9e0da4e87ebd515c106447a927f92f8c0d728c22f3237bf5aa01a037155e"
+  },
+  {
+    "file": "opencv_features2d4.dll",
+    "bytes": 673280,
+    "sha256": "2930686a5fe2893adb7592686c11f4bcace3431e1a247819943ac59133ec2b0a"
+  },
+  {
+    "file": "opencv_flann4.dll",
+    "bytes": 410112,
+    "sha256": "550466d85297b1546d485a993a0c8a6935856cc96789848734cea3e257c8b3aa"
+  },
+  {
+    "file": "opencv_imgproc4.dll",
+    "bytes": 2673664,
+    "sha256": "6664057b10b9090a8dbd4487e21a07dae2afe10df234a87c21495eb48ddadfbf"
+  },
+  {
+    "file": "opencv_objdetect4.dll",
+    "bytes": 1157120,
+    "sha256": "667ee000ecc9584bd8b374f0828267b6a11acbdf834d821ca1901d28e6b903c5"
+  },
+  {
+    "file": "postproc-55.dll",
+    "bytes": 135168,
+    "sha256": "3ab68db9de697bdd751ccb58ed927492f62aa9f7622b6c9ac5563cb7a1ec2c77"
+  },
+  {
+    "file": "realsense2.dll",
+    "bytes": 5773824,
+    "sha256": "09bc297630fc42fb4fb4f5cfb6aa619b45abec64a15aa787c70fb5d7726cb89a"
+  },
+  {
+    "file": "SDL2.dll",
+    "bytes": 1471488,
+    "sha256": "aae1e2c1a5a2a360be4d849a503ced184425913f89b5f5967ac7231281970d0b"
+  },
+  {
+    "file": "swresample-3.dll",
+    "bytes": 428544,
+    "sha256": "ccd180c6cc399860273643464cc74f6874f9c7f3436ed4e7bc829bd5debdbc74"
+  },
+  {
+    "file": "swscale-5.dll",
+    "bytes": 559104,
+    "sha256": "3dac0ea95a2c2f9f1de61286d694929615e2e4d5a3b71a2c14bbdd91a55c0b57"
+  },
+  {
+    "file": "vcruntime140.dll",
+    "bytes": 178616,
+    "sha256": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7"
+  },
+  {
+    "file": "vcruntime140_1.dll",
+    "bytes": 50112,
+    "sha256": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e"
+  },
+  {
+    "file": "z.dll",
+    "bytes": 90624,
+    "sha256": "9e21d637869e26281ae7cbe931adcae364749e93dc92f3cabdb549f46dadbb3c"
+  },
+  {
+    "file": "passthrough.vert",
+    "bytes": 390,
+    "sha256": "932d0b7c15707533ed9c30b63f4dc8a8b2b5701e6249f81bcd97df32d7fef241"
+  },
+  {
+    "file": "interleave.frag",
+    "bytes": 3238,
+    "sha256": "bc84e30947b3f81835022b4161b679996719a60e5c24b073d0734c640fb01291"
+  },
+  {
+    "file": "sbs_interleave.frag",
+    "bytes": 2043,
+    "sha256": "18f5333ba60c8614b242e3bf6f083332c4520704b29e118a67917cbe0484f549"
+  },
+  {
+    "file": "models\\haarcascade_eye_tree_eyeglasses.xml",
+    "bytes": 601661,
+    "sha256": "e32f9c67935c33e9d1331eb14fa58554ff17835c03742663bcb97a892e936a57"
+  },
+  {
+    "file": "models\\haarcascade_frontalface_default.xml",
+    "bytes": 930127,
+    "sha256": "0f7d4527844eb514d4a4948e822da90fbb16a34a0bbbbc6adc6498747a5aafb0"
+  },
+  {
+    "file": "images\\IDW\\001l.ppm",
+    "bytes": 6220860,
+    "sha256": "fd7a974cb7dd43c7b319ca564feb89568da3c9c1132d55d361928c0a7d29f22c"
+  },
+  {
+    "file": "images\\IDW\\001r.ppm",
+    "bytes": 6220860,
+    "sha256": "fd7a974cb7dd43c7b319ca564feb89568da3c9c1132d55d361928c0a7d29f22c"
+  },
+  {
+    "file": "images\\IDW\\002l.ppm",
+    "bytes": 6220862,
+    "sha256": "96b577cb9019de2d2ef8c3a6be26b6d1fe9c4b9a73c8232a79f7a40598e2776c"
+  },
+  {
+    "file": "images\\IDW\\002r.ppm",
+    "bytes": 6220862,
+    "sha256": "0c415a38bd005b5d55dbd54193e53b28255cb3b42501e1019ff17ef1be0a1c98"
+  },
+  {
+    "file": "images\\IDW\\003l.ppm",
+    "bytes": 6220862,
+    "sha256": "1cd29aabd0ac9fefff068fc58657b3f8fda365f2727b0eb58c83f6b65beab379"
+  },
+  {
+    "file": "images\\IDW\\003r.ppm",
+    "bytes": 6220862,
+    "sha256": "f76d71b653299a1156469dd122b4470613b17c571fe5cb963b51a2946f030363"
+  },
+  {
+    "file": "images\\IDW\\004l.ppm",
+    "bytes": 6220862,
+    "sha256": "bcf947c4ea86064d0fc9fadc9777aa95f2b0b0f57e363ae75789f8690eefe085"
+  },
+  {
+    "file": "images\\IDW\\004r.ppm",
+    "bytes": 6220862,
+    "sha256": "d02cfcb74b05fe44ab178975a83a900d1e07159842b9811e318ef36ea3f6362b"
+  },
+  {
+    "file": "images\\IDW\\005l.ppm",
+    "bytes": 6220856,
+    "sha256": "c55127cc8dff95fa8daa866effd583ac927a73585fe6aa32d15b3aa9ebbf20e0"
+  },
+  {
+    "file": "images\\IDW\\005r.ppm",
+    "bytes": 6220856,
+    "sha256": "a21039af7de3cee4710415fc84b32eb471bee97fda5b97bc9ca5a8e26347335a"
+  },
+  {
+    "file": "images\\IDW\\006l.ppm",
+    "bytes": 6220856,
+    "sha256": "3e67424e2f3daf437c8f18b389574ee44347dbe8681ca0ba99ca5b5ab5916051"
+  },
+  {
+    "file": "images\\IDW\\006r.ppm",
+    "bytes": 6220856,
+    "sha256": "193805c5766f19d6091d6c1d84072add508f628e5c6c31c4010e5a2a663931b4"
+  },
+  {
+    "file": "images\\IDW\\007l.ppm",
+    "bytes": 6220860,
+    "sha256": "fd7a974cb7dd43c7b319ca564feb89568da3c9c1132d55d361928c0a7d29f22c"
+  },
+  {
+    "file": "images\\IDW\\007r.ppm",
+    "bytes": 6220856,
+    "sha256": "62fe12f2e70c6b46fc2e70fa41821598662f8b8ff27a422f9675064ca77692dd"
+  },
+  {
+    "file": "images\\IDW\\008l.ppm",
+    "bytes": 6220863,
+    "sha256": "6d9456ab127e7142fb6d01d55b032d10209e7a195f679c7e3938419772755b06"
+  },
+  {
+    "file": "images\\IDW\\008r.ppm",
+    "bytes": 6220863,
+    "sha256": "d84d627ce3cff94e3769b57ca17f00f45befb0bdae3fc608b38d31673e5b0b05"
+  },
+  {
+    "file": "media\\avater.mp4",
+    "bytes": 43841155,
+    "sha256": "9cfbbe4681f50baea3b48a7295c92dcfec26e785980c7ad2722bde1231ec3b47"
+  },
+  {
+    "file": "Prerequisites\\vc_redist.x64.exe",
+    "bytes": 18731856,
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c"
+  }
+]
