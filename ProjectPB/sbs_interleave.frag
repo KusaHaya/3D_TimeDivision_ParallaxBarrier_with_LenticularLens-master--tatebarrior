@@ -1,73 +1,145 @@
 #version 330 core
 
+
+
 in vec2 UV;
+
+
 
 uniform sampler2D sbsTexture;
 
-// ‹Œ•û®‚Æ‘Î‰‚³‚¹‚éuniform
-uniform float haba;         // ƒTƒuƒsƒNƒZƒ‹’PˆÊ
-uniform float totalShift;   // C++‘¤‚Å MiddleLine - 48.0 * haba ‚ğ“n‚·
-uniform int   timeStep;     // ‹Œ•û®‚Ì kk
-uniform float manualShift;  // ‹Œ•û®‚Ì SHIFT
-uniform float slantY;       // ‹Œ•û®‚Ì W + H ‘Š“–‚È‚ç 1.0
+
+
+// æ—§æ–¹å¼ã¨å¯¾å¿œã•ã›ã‚‹uniform
+
+uniform float haba;         // ã‚µãƒ–ãƒ”ã‚¯ã‚»ãƒ«å˜ä½
+
+uniform float totalShift;   // C++å´ã§ MiddleLine - 48.0 * haba ã‚’æ¸¡ã™
+
+uniform int   timeStep;     // æ—§æ–¹å¼ã® kk
+
+uniform float manualShift;  // æ—§æ–¹å¼ã® SHIFT
+
+uniform float slantY;       // æ—§æ–¹å¼ã® W + H ç›¸å½“ãªã‚‰ 1.0
+
+
 
 out vec4 color;
 
+
+
 float positiveMod(float x, float m)
+
 {
+
     return mod(mod(x, m) + m, m);
+
 }
 
-// C++‚Ì int / int ‚É‹ß‚Ã‚¯‚é‚½‚ß‚ÌœZ
-// ’Êí totalShift ‚ª•‰‚Å W - totalShift ‚ª³‚È‚ç floor ‚¾‚¯‚Å‚à‚Ù‚Ú“¯‚¶
+
+
+// C++ã® int / int ã«è¿‘ã¥ã‘ã‚‹ãŸã‚ã®é™¤ç®—
+
+// é€šå¸¸ totalShift ãŒè² ã§ W - totalShift ãŒæ­£ãªã‚‰ floor ã ã‘ã§ã‚‚ã»ã¼åŒã˜
+
 float cxxIntDivLike(float a, float b)
+
 {
+
     float q = a / b;
+
     return (q >= 0.0) ? floor(q) : ceil(q);
+
 }
 
-// true ‚È‚ç¶–ÚAfalse ‚È‚ç‰E–Ú
+
+
+// true ãªã‚‰å·¦ç›®ã€false ãªã‚‰å³ç›®
+
 bool shouldShowLeftEye(float Wsub, float Ypx)
+
 {
-    // ‹Œ•û®‚Ì W + H ‚É‘Š“–
+
+    // æ—§æ–¹å¼ã® W + H ã«ç›¸å½“
+
     float W = Wsub + slantY * Ypx;
 
-    // ‹Œ•û®‚Ì (W - totalShift) / haba
+
+
+    // æ—§æ–¹å¼ã® (W - totalShift) / haba
+
     float correction = cxxIntDivLike(W - totalShift, haba);
 
-    // ‹Œ•û®‚Ì ((W + H) - correction) + 2 * kk + SHIFT
+
+
+    // æ—§æ–¹å¼ã® ((W + H) - correction) + 2 * kk + SHIFT
+
     float value = W
+
                 - correction
+
                 + 2.0 * float(timeStep)
+
                 + manualShift;
 
-    // ‹Œ•û®‚Å‚Í %8 < 4 ‚ªƒXƒeƒ“ƒVƒ‹1
-    // ƒXƒeƒ“ƒVƒ‹1‘¤‚É‚Í‰E–Ú‚ğ•`‚¢‚Ä‚¢‚½‚Ì‚ÅA
-    // shader‚Å true=¶–Ú ‚É‚·‚é‚È‚ç >=4
+
+
+    // æ—§æ–¹å¼ã§ã¯ %8 < 4 ãŒã‚¹ãƒ†ãƒ³ã‚·ãƒ«1
+
+    // ã‚¹ãƒ†ãƒ³ã‚·ãƒ«1å´ã«ã¯å³ç›®ã‚’æã„ã¦ã„ãŸã®ã§ã€
+
+    // shaderã§ true=å·¦ç›® ã«ã™ã‚‹ãªã‚‰ >=4
+
     return positiveMod(value, 8.0) >= 4.0;
+
 }
 
+
+
 void main()
+
 {
+
     vec2 leftUV  = vec2(UV.x * 0.5,       UV.y);
+
     vec2 rightUV = vec2(UV.x * 0.5 + 0.5, UV.y);
 
+
+
     vec4 leftColor  = texture(sbsTexture, leftUV);
+
     vec4 rightColor = texture(sbsTexture, rightUV);
 
+
+
     vec4 finalColor;
+
     finalColor.a = 1.0;
 
+
+
     float Wsub = floor(gl_FragCoord.x) * 3.0;
+
     float Ypx  = floor(gl_FragCoord.y);
 
+
+
     bool rLeft = shouldShowLeftEye(Wsub + 0.0, Ypx);
+
     bool gLeft = shouldShowLeftEye(Wsub + 1.0, Ypx);
+
     bool bLeft = shouldShowLeftEye(Wsub + 2.0, Ypx);
 
+
+
     finalColor.r = rLeft ? leftColor.r : rightColor.r;
+
     finalColor.g = gLeft ? leftColor.g : rightColor.g;
+
     finalColor.b = bLeft ? leftColor.b : rightColor.b;
 
+
+
     color = finalColor;
+
 }

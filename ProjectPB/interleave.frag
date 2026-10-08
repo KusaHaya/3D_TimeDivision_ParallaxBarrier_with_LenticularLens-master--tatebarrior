@@ -2,22 +2,22 @@
 
 in vec2 UV;
 
-// C++?¿½?¿½?¿½?¿½?¯ï¿½?¿½uniform?¿½Ïï¿½
+// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®è¡¨ç¤ºãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãƒ¼ã€‚
 uniform sampler2D leftTexture;
 uniform sampler2D rightTexture;
 
-uniform float haba;         // ?¿½?¿½?¿½?¿½?¿½?¿½?¿½?¿½(Z)?¿½?¿½?¿½?¿½v?¿½Z?¿½?¿½?¿½ê‚½?¿½l?¿½i?¿½T?¿½u?¿½s?¿½N?¿½Z?¿½?¿½?¿½?¿½?¿½j
-uniform float totalShift;   // ?¿½]?¿½?¿½?¿½?¿½?¿½?¿½?¿½ÌŠî€?¿½V?¿½t?¿½g
-uniform int   timeStep;     // ?¿½?¿½?¿½?¿½?¿½?¿½?¿½ÌƒX?¿½e?¿½b?¿½v (kk)
-uniform float manualShift;  // ?¿½è“®?¿½?¿½?¿½?¿½?¿½p?¿½ÌƒV?¿½t?¿½g (SHIFT)
-uniform vec3  rgbGain;      // RGB?¿½Q?¿½C?¿½?¿½?¿½â³
-uniform float gammaValue;   // ?¿½K?¿½?¿½?¿½}?¿½â³
-uniform float crosstalk;    // ?¿½N?¿½?¿½?¿½X?¿½g?¿½[?¿½N?¿½âï¿½?¿½
-uniform int   enableColorCorrection; // 1:?¿½L?¿½?¿½, 0:?¿½?¿½?¿½?¿½
-uniform float middleLinePx; // ?¿½s?¿½N?¿½Z?¿½?¿½?¿½P?¿½ÊiC++?¿½?¿½?¿½?¿½ MiddleLine/3 ?¿½?¿½n?¿½?¿½?¿½j
+uniform float haba;         // ãƒãƒªã‚¢å¹…ï¼ˆã‚µãƒ–ãƒ”ã‚¯ã‚»ãƒ«å˜ä½ï¼‰ã€‚
+uniform float totalShift;   // è¿½è·¡ä½ç½®ã‹ã‚‰è¨ˆç®—ã—ãŸè¡¨ç¤ºä½ç›¸ã®è£œæ­£ã€‚
+uniform int   timeStep;     // æ™‚åˆ†å‰²ä½ç›¸ï¼ˆ0ï½3ï¼‰ã€‚
+uniform float manualShift;  // æ‰‹å‹•ã®ä½ç›¸è£œæ­£ã€‚
+uniform vec3  rgbGain;      // RGBã”ã¨ã®æ˜ã‚‹ã•è£œæ­£ã€‚
+uniform float gammaValue;   // ã‚¬ãƒ³ãƒè£œæ­£å€¤ã€‚
+uniform float crosstalk;    // ã‚¯ãƒ­ã‚¹ãƒˆãƒ¼ã‚¯è£œæ­£ä¿‚æ•°ã€‚
+uniform int   enableColorCorrection; // 1ã§è‰²è£œæ­£ã‚’æœ‰åŠ¹ã«ã™ã‚‹ã€‚
+uniform float middleLinePx; // ä¸­å¿ƒç·šã®ãƒ”ã‚¯ã‚»ãƒ«ä½ç½®ã€‚
 
-// ?¿½Ç‰ï¿½: ?¿½p?¿½x?¿½?¿½?¿½?¿½?¿½p
-uniform float slantY;       // 1.0 ?¿½?¿½ tan^-1(-3)
+// ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã®è¡¨ç¤ºãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãƒ¼ã€‚
+uniform float slantY;       // æ–œã‚ãƒãƒªã‚¢ã®ç¸¦æ–¹å‘ä¿‚æ•°ã€‚
 
 out vec4 color;
 
@@ -28,13 +28,13 @@ float positiveMod(float x, float m)
 
 bool shouldShowLeftEye(float Wsub, float Ypx)
 {
-    // ƒoƒŠƒA‚Æ“¯‚¶Î‚ßÀ•W
+    // ãƒãƒªã‚¢ã¨åŒã˜æ–œã‚åº§æ¨™
     float S = Wsub + slantY * Ypx;
 
-    // C++‘¤‚Å“n‚µ‚½ totalShift = MiddleLine - 48 * haba ‚ğg‚¤
+    // C++å´ã§æ¸¡ã—ãŸ totalShift = MiddleLine - 48 * haba ã‚’ä½¿ã†
     float q = (S - totalShift) / max(haba, 1.0);
 
-    // floor‚ğg‚í‚¸A˜A‘±“I‚È••â³‚É‚·‚é
+    // floorã‚’ä½¿ã‚ãšã€é€£ç¶šçš„ãªå¹…è£œæ­£ã«ã™ã‚‹
     float correction = q;
 
     float value = S

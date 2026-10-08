@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #pragma comment(lib, "avcodec.lib")
 #pragma comment(lib, "avformat.lib")
 #pragma comment(lib, "avutil.lib")

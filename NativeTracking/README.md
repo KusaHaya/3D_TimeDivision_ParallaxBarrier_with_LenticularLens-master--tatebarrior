@@ -1,3 +1,5 @@
+﻿> 現在は外部EyeTracker-RSのOSC受信へ切り替えています。最新の手順は[OSC-Tracking.md](OSC-Tracking.md)を参照してください。以下は以前の内蔵追跡の記録です。
+
 # D435を描画プログラム内で直接使用する
 
 `realsense` ブランチの通常構成です。ProjectPB.exeを起動すると、同じプロセス内で
@@ -102,3 +104,14 @@ RealSense/OpenCVのcore・imgproc・objdetectにリンクして実行できま�
 取得するXMLはOpenCV 4.14.0配布物の `haarcascade_frontalface_default.xml` と
 `haarcascade_eye_tree_eyeglasses.xml` です。ライセンス・著作権表記は各XML冒頭に保持されます。
 元データ: https://github.com/opencv/opencv/tree/4.14.0/data/haarcascades
+
+## 連続性を使う追跡への更新
+
+StartEyeCheck.cmd を起動します。前回の有効な眼位置に近い候補を優先します。顔が一時的に見つからない場合は前の顔領域で眼を探します。
+眼候補は前の位置から最大 max(35px, 顔幅の40%) に制限します。
+3Dの片眼ごとの変化が 0.04m + 0.6m/s × 経過秒（最大0.2秒）を超える場合は除外します。実機での改善率は未確認です。
+MEASURED は新しい測定、HELD は過去の有効値、NO_DATA は初期測定前です。
+緑の丸は測定した眼、紫の丸は保持する以前の眼位置です。
+保持に時間制限は設けず、検出欠落・カメラ再接続中も最後の座標を使います。保持値は現在の測定ではありません。
+大きく移動して追従しない場合は R でテストの履歴をリセットします。本体はアプリ再起動でリセットします。
+本体ソースにも反映済みです。本体 exe は Release/x64 のリビルドが必要です。

@@ -1,4 +1,4 @@
-#include "RealSenseTracker.h"
+﻿#include "RealSenseTracker.h"
 #include "RealSenseTrackingMath.h"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/objdetect.hpp>
@@ -8,33 +8,7 @@
 #include <stdexcept>
 #include <thread>
 
-namespace {
-bool DetectEyes(const cv::Mat& color, cv::CascadeClassifier& faceDetector,
-    cv::CascadeClassifier& eyeDetector, std::array<cv::Point, 2>& eyes) {
-    cv::Mat gray;
-    cv::cvtColor(color, gray, cv::COLOR_BGR2GRAY);
-    cv::equalizeHist(gray, gray);
-    std::vector<cv::Rect> faces, detections;
-    faceDetector.detectMultiScale(gray, faces, 1.1, 5, 0, cv::Size(100, 100));
-    if (faces.size() != 1) return false;
-    const auto face = faces.front();
-    const cv::Rect upper(face.x, face.y, face.width, std::max(1, static_cast<int>(face.height * .62)));
-    eyeDetector.detectMultiScale(gray(upper), detections, 1.08, 6, 0,
-        cv::Size(std::max(18, face.width / 10), std::max(12, face.height / 12)));
-    double bestScore = -1;
-    for (size_t i = 0; i < detections.size(); ++i)
-        for (size_t j = i + 1; j < detections.size(); ++j) {
-            cv::Point left = detections[i].tl() + cv::Point(detections[i].width / 2, detections[i].height / 2) + upper.tl();
-            cv::Point right = detections[j].tl() + cv::Point(detections[j].width / 2, detections[j].height / 2) + upper.tl();
-            if (left.x > right.x) std::swap(left, right);
-            const int separation = right.x - left.x, vertical = std::abs(right.y - left.y);
-            if (separation < .2 * face.width || separation > .75 * face.width || vertical > .2 * face.height) continue;
-            const double score = detections[i].area() + detections[j].area() + 10. * separation - 15. * vertical;
-            if (score > bestScore) { bestScore = score; eyes = {{left, right}}; }
-        }
-    return bestScore >= 0;
-}
-}
+#include "TemporalEyeDetection.h"
 
 struct RealSenseTracker::Impl {
     std::atomic<bool> stop{false};
@@ -47,7 +21,23 @@ struct RealSenseTracker::Impl {
         std::lock_guard<std::mutex> lock(mutex);
         latest.Invalidate();
     }
+    tracking::LatestSample::Clock::time_point lastDiagnostic{};
+    void ReportDetectionGap(const char* reason) {
+        const auto now = tracking::LatestSample::Clock::now();
+        if (now - lastDiagnostic < std::chrono::seconds(2)) return;
+        bool holding;
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            std::array<float, 6> ignored;
+            holding = latest.Read(ignored, now);
+        }
+        std::cerr << "RealSense detection: " << reason
+                  << (holding ? "; holding last valid position; not a new measurement.\n"
+                              : "; no recent valid sample.\n");
+        lastDiagnostic = now;
+    }
     void Run() {
+        tracking::TemporalEyeDetector detector;
         while (!stop) {
             try {
                 rs2::pipeline pipeline;
@@ -62,7 +52,7 @@ struct RealSenseTracker::Impl {
                 while (!stop) {
                     rs2::frameset frames;
                     if (!pipeline.try_wait_for_frames(&frames, 100)) {
-                        Invalidate();
+                        ReportDetectionGap("frame timeout");
                         if (tracking::LatestSample::Clock::now() - lastFrame > std::chrono::seconds(2))
                             throw std::runtime_error("No RealSense frames for two seconds");
                         continue;
@@ -71,7 +61,7 @@ struct RealSenseTracker::Impl {
                     frames = align.process(frames).as<rs2::frameset>();
                     const auto color = frames.get_color_frame();
                     const auto depth = frames.get_depth_frame();
-                    if (!color || !depth) { Invalidate(); continue; }
+                    if (!color || !depth) { ReportDetectionGap("color or depth frame missing"); continue; }
                     cv::Mat bgr(color.get_height(), color.get_width(), CV_8UC3,
                         const_cast<void*>(color.get_data()), color.get_stride_in_bytes());
                     cv::Mat depths(depth.get_height(), depth.get_width(), CV_16UC1,
@@ -79,17 +69,33 @@ struct RealSenseTracker::Impl {
                     std::array<cv::Point, 2> eyes;
                     std::array<float, 6> coordinates;
                     const auto intrinsics = depth.get_profile().as<rs2::video_stream_profile>().get_intrinsics();
-                    if (!DetectEyes(bgr, faceDetector, eyeDetector, eyes) ||
-                        !tracking::EyeCoordinates(depths, eyes, scale, intrinsics, coordinates)) {
-                        Invalidate();
+                    const char* reason = "valid eye pair not detected";
+                    if (!detector.Detect(bgr, faceDetector, eyeDetector, eyes, reason)) {
+                        ReportDetectionGap(reason);
                         continue;
                     }
-                    std::lock_guard<std::mutex> lock(mutex);
-                    latest.Update(coordinates, lastFrame);
+                    if (!tracking::EyeCoordinates(depths, eyes, scale, intrinsics, coordinates, detector.estimatedEye)) {
+                        ReportDetectionGap("invalid eye depth or eye separation");
+                        continue;
+                    }
+                    const auto measuredAt = tracking::LatestSample::Clock::now();
+                    bool accepted;
+                    {
+                        std::lock_guard<std::mutex> lock(mutex);
+                        accepted = latest.TryUpdate(coordinates, measuredAt);
+                    }
+                    if (accepted) {
+                        detector.Commit(eyes);
+                        if(detector.estimatedEye>=0 && measuredAt-lastDiagnostic>=std::chrono::seconds(2)) {
+                            std::cout << "RealSense: ESTIMATED eye from one eye + face; visible-eye depth used.\n";
+                            lastDiagnostic=measuredAt;
+                        }
+                    }
+                    else ReportDetectionGap("discontinuous 3D sample rejected");
                 }
                 pipeline.stop();
             } catch (const std::exception& e) {
-                Invalidate();
+                // Preserve the last position during camera reconnection.
                 std::cerr << "RealSense: " << e.what() << "; retrying in 2 seconds.\n";
                 for (int i = 0; i < 20 && !stop; ++i) std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }

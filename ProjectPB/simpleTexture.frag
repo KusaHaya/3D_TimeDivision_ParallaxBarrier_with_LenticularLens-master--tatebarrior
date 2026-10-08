@@ -1,13 +1,25 @@
 #version 330 core
 
+
+
 in vec2 UV;
 
-// ó‚¯æ‚éƒeƒNƒXƒ`ƒƒ‚Í1–‡‚¾‚¯‚É‚·‚é
+
+
+// å—ã‘å–ã‚‹ãƒ†ã‚¯ã‚¹ãƒãƒ£ã¯1æšã ã‘ã«ã™ã‚‹
+
 uniform sampler2D displayTexture;
+
+
 
 out vec4 color;
 
+
+
 void main(){
-    // ó‚¯æ‚Á‚½ƒeƒNƒXƒ`ƒƒ‚ÌF‚ğ‚»‚Ì‚Ü‚Üo—Í‚·‚é
+
+    // å—ã‘å–ã£ãŸãƒ†ã‚¯ã‚¹ãƒãƒ£ã®è‰²ã‚’ãã®ã¾ã¾å‡ºåŠ›ã™ã‚‹
+
     color = texture(displayTexture, UV);
+
 }

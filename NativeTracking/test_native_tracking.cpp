@@ -33,7 +33,10 @@ int main(int argc, char** argv) {
         Check(!sample.Read(result, now), "Uninitialized sample accepted");
         sample.Update(first, now);
         Check(sample.Read(result, now) && result == first, "First measurement altered");
-        Check(!sample.Read(result, now + std::chrono::milliseconds(501)), "Stale result accepted");
+        Check(sample.Read(result, now + std::chrono::seconds(10)) && result == first, "Detection gap did not hold last position");
+        auto outlier = first; outlier[0] += 1.f;
+        Check(!sample.TryUpdate(outlier, now + std::chrono::milliseconds(33)), "Discontinuous sample accepted");
+        Check(sample.Read(result, now) && result == first, "Rejected sample changed held position");
         sample.Invalidate();
         Check(!sample.Read(result, now), "Lost result accepted");
         auto moved = first;
@@ -49,7 +52,7 @@ int main(int argc, char** argv) {
             cv::CascadeClassifier eyes(directory + "/haarcascade_eye_tree_eyeglasses.xml");
             Check(!face.empty() && !eyes.empty(), "Bundled models failed to load");
         }
-        std::cout << "PASS: native axes, depth, eye pair validation, stale/lost/reacquired samples, models\n";
+        std::cout << "PASS: native axes, depth, eye pair validation, held/outlier/reset samples, models\n";
         return 0;
     } catch (const std::exception& e) {
         std::cerr << e.what() << '\n';

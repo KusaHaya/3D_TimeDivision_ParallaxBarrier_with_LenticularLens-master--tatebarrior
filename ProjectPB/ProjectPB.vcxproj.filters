@@ -18,7 +18,7 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="RealSenseTracker.cpp">
+    <ClCompile Include="ExternalEyeTracker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Media.cpp">
@@ -42,9 +42,14 @@
     <None Include="simpleTexture.frag">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="sbs_interleave.frag" />
+    <None Include="interleave.frag" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="RealSenseTracker.h">
+    <ClInclude Include="OscEyePacket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ExternalEyeTracker.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RealSenseTrackingMath.h">

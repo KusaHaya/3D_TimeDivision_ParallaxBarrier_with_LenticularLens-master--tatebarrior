@@ -2,12 +2,13 @@
 #define NOMINMAX
 
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 
 #include <iostream>
 #include<fstream>
-#include "RealSenseTracker.h"
+#include "ExternalEyeTracker.h"
 #include <boost/asio.hpp>
 #include "boost/format.hpp"
 #include <windows.h>
@@ -54,11 +55,15 @@ extern "C" FILE * __cdecl __iob_func(void)
 #define TIME_DIV_1 201
 #define TIME_DIV_2 202
 #define TIME_DIV_3 203
+#define HOLD_FRAME_0 210
+#define HOLD_FRAME_1 211
+#define HOLD_FRAME_2 212
+#define HOLD_FRAME_3 213
 
 
 
-// �Î~��Ɠ���̃p�^�[���̊ԂŐ�����ʒu���̕␳�i�e�N�X�`���}�b�s���O�ƃX�e���V���}�X�N�j
-// �p�l�����Ƃɐݒ肷��K�v����
+// 静止画と動画の表示位相を合わせるための手動補正。
+// 表示パネルに合わせて調整する。
 int SHIFT = 1;
 
 #define SIM_W 1920 // calibration image width
@@ -67,14 +72,14 @@ int SHIFT = 1;
 #define SIN 0.139
 #define COS 0.99
 
-// teapot�ɓ\��
-//texture�̏c���i2^n 2^m�łȂ��Ƃ����Ȃ��j
+// ティーポットに貼り付けるテクスチャ。
+// テクスチャの幅と高さ。
 
 #define TEAPOT_HEIGHT 512
 #define TEAPOT_WIDTH  512
 
-#define SHGT 12 // �X�e���V��1�P�ʂ̏c��
-#define MIM_W 1920 + 1008  //1968 // �X�e���V���}�[�W���t������
+#define SHGT 12 // ステンシルの単位高さ。
+#define MIM_W 1920 + 1008  // ステンシルの横幅と余白。
 
 
 float eyeposx[2];
@@ -85,10 +90,10 @@ float zsft = 0;
 float alphax = 1.0;
 int habat = 0;
 
-float crosstalkFactor = 0.15f; // �N���X�g�[�N�W���̏����l (15%)
-float headTrackShift = 0.0f; // �w�b�h�g���b�L���O�ɂ��V�t�g�ʁi�T�u�s�N�Z���P�ʁj
+float crosstalkFactor = 0.15f; // クロストーク補正係数（15%）。
+float headTrackShift = 0.0f; // 頭部追跡による横方向の補正量（サブピクセル単位）。
 
-// �F�␳�p�����[�^�i���@�Œ������₷���悤�ɃO���[�o�����j
+// 色補正の設定値。
 float colorGainR = 1.00f;
 float colorGainG = 1.00f;
 float colorGainB = 1.00f;
@@ -109,15 +114,19 @@ char anmode = 0; // anaglyph mode
 char filePath[32]; // store filename
 
 float delta = 0.0;
+float horizontalTrackingGain = 0.7f; // 左右共通の横方向補正倍率。RealSenseの測定値そのものは変更しない。
 float DotPixel = 0.27;
 float DotSubPixel = 0.09;// DotSubPixel=DotPixel(=0.27)/3
-float theta = 30; // teapot�̌������ς��
+float theta = 30; // ティーポットの回転角。
 
 int flag = 0; // an auto parameter acting as a switch signal
 int img = 1; // image number: 1~10
 int qq = 1; // an auto parameter acting as a switch signal
 int haba = haba_first; // phase width with 1/3 pixel (= sub-pixel)
-int kk = 0; // �������̐���p�����[�^
+int kk = 0; // 時分割表示の位相（0～3）。
+int displayedKk = 0;
+bool frameHoldMode = false;
+bool holdCommandPending = false;
 int cali_flag = 0; // calibation mode
 // int phaba = 0;
 // int pMiddleLine = 0;
@@ -133,7 +142,7 @@ float PosX = 0;
 float PosY = -0.18;
 float PosZ = 0.11;
 
-// �摜�\���p�e�N�X�`��
+// 静止画表示用の左右テクスチャ。
 unsigned char image_texture[2][SIM_H][SIM_W][3];
 GLuint imageL, imageR;
 
@@ -141,13 +150,13 @@ const int MiddleDefault = 3420;
 //const int MiddleDefault = 2340;
 int MiddleLine = MiddleDefault;
 int mrk = 0;
-int eyeright = 1; // 1: �E�ډ摜��\��, 0: �E�ډ摜��\��
-int eyeleft = 1; // 1: ���ډ摜��\��, 0: ���ډ摜��\��
+int eyeright = 1; // 右目画像の表示設定。
+int eyeleft = 1; // 左目画像の表示設定。
 const float DefaultScale = 1.0f;
 float videoscale = 1.0f;//0.923f
 bool VideoSwitch = false;
 
-// random ��keyboardFuc�̒��ł����g���Ă��Ȃ�
+// キーボード操作用のランダム表示設定。
 int random = 0; // random mode for test
 
 GLuint shaderProgram;
@@ -160,11 +169,11 @@ GLint u_img_haba = -1;
 GLint u_img_totalShift = -1;
 GLint u_img_timeStep = -1;
 GLint u_img_manualShift = -1;
-float barrierSlantY = 1.0f;   // 1.0 �� tan^-1(-3)
+float barrierSlantY = 1.0f;   // 斜めバリアの縦方向係数。
 
 GLint u_img_slantY = -1;
 GLint u_vid_slantY = -1;
-//GLint u_img_middleLinePx = -1; // ���ǉ�����uniform������ꍇ
+// 現在は使用しない色補正uniform。
 //GLint u_img_rgbGain = -1;
 //GLint u_img_gamma = -1;
 //GLint u_img_crosstalk = -1;
@@ -176,7 +185,7 @@ GLint u_vid_haba = -1;
 GLint u_vid_totalShift = -1;
 GLint u_vid_timeStep = -1;
 GLint u_vid_manualShift = -1;
-//GLint u_vid_middleLinePx = -1; // ���ǉ�����uniform������ꍇ
+// 現在は使用しない色補正uniform。
 //GLint u_vid_rgbGain = -1;
 //GLint u_vid_gamma = -1;
 //GLint u_vid_crosstalk = -1;
@@ -187,29 +196,29 @@ bool ReserveLR = true;
 boost::asio::io_service io;
 boost::asio::serial_port arduinoSerial(io);
 
-// Arduino�ɃR�}���h�ԍ��iint�l�j��1�o�C�g�ő��M����֐�
+// Arduinoへコマンドを1バイトで送信する。
 void SendArduinoCommand(int command) {
 	if (arduinoSerial.is_open()) {
 		unsigned char cmd = static_cast<unsigned char>(command);
 		boost::system::error_code ec;
 		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&cmd, 1), ec);
 		if (ec || bytes_written != 1) {
-			printf("[ERROR] Arduino�ւ̑��M���s: %s\n", ec.message().c_str());
+			printf("[ERROR] Arduino send failed: %s\n", ec.message().c_str());
 		}
 	}
 	else {
-		printf("[WARN] Arduino�V���A���|�[�g���J���Ă��܂���\n");
+		printf("[WARN] Arduino serial port is not open.\n");
 	}
 }
 
-RealSenseTracker trackingClient;
+ExternalEyeTracker trackingClient;
 
 void UpdateTracking()
 {
     std::array<float, 6> datas;
     if (!trackingClient.Poll(datas)) {
         if (ht) {
-            printf("RealSense tracking lost. Press h after reacquisition.\n");
+            printf("External eye tracking has no sample. Press h after receiving data.\n");
             ht = 0;
             cali_flag = 0;
             haba = haba_first;
@@ -236,7 +245,7 @@ void UpdateTracking()
         caliZ = tmpZ;
         ht = 1;
         cali_flag = 0;
-        printf("RealSense head-tracking: ON\n");
+        printf("External OSC head-tracking: ON\n");
     }
     for (int eye = 0; eye < 2; ++eye) {
         const int index = (1 - eye) * 3;
@@ -246,7 +255,8 @@ void UpdateTracking()
     }
     if (ht == 1) {
         haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
-        delta = 0.895 / (tmpZ - 0.3245) * (tmpX - caliX) * 1000 / DotSubPixel;
+        // 同じ奥行きでは左右対称。移動方向によって符号だけが変わる。
+        delta = horizontalTrackingGain * 0.895 / (tmpZ - 0.3245) * (tmpX - caliX) * 1000 / DotSubPixel;
         headTrackShift = delta;
         const int move = delta < 0.0 ? (int)(delta - 0.5) : (int)(delta + 0.5);
         MiddleLine = MiddleDefault - move;
@@ -322,13 +332,13 @@ int ppm_reader(char *filename, unsigned char *pimage)
 	fclose(fp);
 }
 
-// �V�F�[�_�[�t�@�C����ǂݍ��݁A�R���p�C�����āA�v���O�������쐬����w���p�[�֐�
+// シェーダーファイルを読み込み、コンパイルしてリンクする。
 GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path) {
-	// 1. �V�F�[�_�[�I�u�W�F�N�g���쐬
+	// シェーダーオブジェクトを作成する。
 	GLuint VertexShaderID = glCreateShader(GL_VERTEX_SHADER);
 	GLuint FragmentShaderID = glCreateShader(GL_FRAGMENT_SHADER);
 
-	// 2. ���_�V�F�[�_�[�̃\�[�X�R�[�h���t�@�C������ǂݍ���
+	// 頂点シェーダーのソースを読み込む。
 	std::string VertexShaderCode;
 	std::ifstream VertexShaderStream(vertex_file_path, std::ios::in);
 	if (VertexShaderStream.is_open()) {
@@ -339,11 +349,11 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 	}
 	else {
 		printf("Failed to open %s\n", vertex_file_path);
-		// getchar(); // �R���\�[������u�ŕ��Ȃ��悤�ɂ���
+		// 必要に応じてコンソールを停止する。
 		return 0;
 	}
 
-	// 3. �t���O�����g�V�F�[�_�[�̃\�[�X�R�[�h���t�@�C������ǂݍ���
+	// フラグメントシェーダーのソースを読み込む。
 	std::string FragmentShaderCode;
 	std::ifstream FragmentShaderStream(fragment_file_path, std::ios::in);
 	if (FragmentShaderStream.is_open()) {
@@ -356,13 +366,13 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 	GLint Result = GL_FALSE;
 	int InfoLogLength;
 
-	// 4. ���_�V�F�[�_�[���R���p�C��
+	// 頂点シェーダーをコンパイルする。
 	printf("Compiling shader : %s\n", vertex_file_path);
 	char const* VertexSourcePointer = VertexShaderCode.c_str();
 	glShaderSource(VertexShaderID, 1, &VertexSourcePointer, NULL);
 	glCompileShader(VertexShaderID);
 
-	// ���_�V�F�[�_�[�̃R���p�C�����ʂ��`�F�b�N
+	// 頂点シェーダーのコンパイル結果を確認する。
 	glGetShaderiv(VertexShaderID, GL_COMPILE_STATUS, &Result);
 	glGetShaderiv(VertexShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
 	if (InfoLogLength > 0) {
@@ -371,13 +381,13 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 		printf("%s\n", &VertexShaderErrorMessage[0]);
 	}
 
-	// 5. �t���O�����g�V�F�[�_�[���R���p�C��
+	// フラグメントシェーダーをコンパイルする。
 	printf("Compiling shader : %s\n", fragment_file_path);
 	char const* FragmentSourcePointer = FragmentShaderCode.c_str();
 	glShaderSource(FragmentShaderID, 1, &FragmentSourcePointer, NULL);
 	glCompileShader(FragmentShaderID);
 
-	// �t���O�����g�V�F�[�_�[�̃R���p�C�����ʂ��`�F�b�N
+	// フラグメントシェーダーのコンパイル結果を確認する。
 	glGetShaderiv(FragmentShaderID, GL_COMPILE_STATUS, &Result);
 	glGetShaderiv(FragmentShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
 	if (InfoLogLength > 0) {
@@ -386,14 +396,14 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 		printf("%s\n", &FragmentShaderErrorMessage[0]);
 	}
 
-	// 6. �V�F�[�_�[�v���O�������쐬���A2�̃V�F�[�_�[�������N����
+	// シェーダープログラムを作成してリンクする。
 	printf("Linking program\n");
 	GLuint ProgramID = glCreateProgram();
 	glAttachShader(ProgramID, VertexShaderID);
 	glAttachShader(ProgramID, FragmentShaderID);
 	glLinkProgram(ProgramID);
 
-	// �����N���ʂ��`�F�b�N
+	// リンク結果を確認する。
 	glGetProgramiv(ProgramID, GL_LINK_STATUS, &Result);
 	glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &InfoLogLength);
 	if (InfoLogLength > 0) {
@@ -402,51 +412,51 @@ GLuint LoadShaders(const char* vertex_file_path, const char* fragment_file_path)
 		printf("%s\n", &ProgramErrorMessage[0]);
 	}
 
-	// 7. �����N��͌X�̃V�F�[�_�[�I�u�W�F�N�g�͕s�v�Ȃ̂ō폜����
+	// リンク後に個々のシェーダーオブジェクトを解放する。
 	glDetachShader(ProgramID, VertexShaderID);
 	glDetachShader(ProgramID, FragmentShaderID);
 	glDeleteShader(VertexShaderID);
 	glDeleteShader(FragmentShaderID);
 
-	// 8. ���������v���O������ID��Ԃ�
+	// 完成したプログラムIDを返す。
 	return ProgramID;
 }
 
-// �`��p�̎l�p�`(Quad)���������邽�߂̕ϐ��Ɗ֐�
+// 画面全体に描画する四角形を、2枚の三角形で定義する。
 GLuint quadVBO, quadVAO;
 GLfloat quadVertices[] = {
-	// �ʒu(x,y,z)      // �e�N�X�`�����W(u,v)
-	-1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // V���W�� 1.0 �� 0.0 �ɕύX
-	-1.0f, -1.0f, 0.0f,  0.0f, 1.0f, // V���W�� 0.0 �� 1.0 �ɕύX
-	 1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // V���W�� 0.0 �� 1.0 �ɕύX
+	// 頂点位置(x, y, z)とテクスチャ座標(u, v)。
+	-1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // 画像の上下に合わせたUV座標。
+	-1.0f, -1.0f, 0.0f,  0.0f, 1.0f, // 画像の上下に合わせたUV座標。
+	 1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // 画像の上下に合わせたUV座標。
 
-	-1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // V���W�� 1.0 �� 0.0 �ɕύX
-	 1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // V���W�� 0.0 �� 1.0 �ɕύX
-	 1.0f,  1.0f, 0.0f,  1.0f, 0.0f  // V���W�� 1.0 �� 0.0 �ɕύX
+	-1.0f,  1.0f, 0.0f,  0.0f, 0.0f, // 画像の上下に合わせたUV座標。
+	 1.0f, -1.0f, 0.0f,  1.0f, 1.0f, // 画像の上下に合わせたUV座標。
+	 1.0f,  1.0f, 0.0f,  1.0f, 0.0f  // 画像の上下に合わせたUV座標。
 };
 
 void setupQuad() {
-	// VAO (Vertex Array Object) ���쐬���ăo�C���h
+	// VAOを作成してバインドする。
 	glGenVertexArrays(1, &quadVAO);
 	glBindVertexArray(quadVAO);
 
-	// VBO (Vertex Buffer Object) ���쐬���ăo�C���h
+	// VBOを作成してバインドする。
 	glGenBuffers(1, &quadVBO);
 	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-	// ���_�f�[�^��VBO�ɏ�������
+	// 頂点データをVBOに転送する。
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
 
-	// ���_�����|�C���^�[��ݒ� (���_�V�F�[�_�[�� layout(location = 0) �ɑΉ�)
-	// ����0: ���_�ʒu
+	// 頂点属性の構成を設定する。
+	// 属性0は頂点位置。
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)0);
 
-	// ���_�����|�C���^�[��ݒ� (���_�V�F�[�_�[�� layout(location = 1) �ɑΉ�)
-	// ����1: �e�N�X�`��UV���W
+	// テクスチャ座標の構成を設定する。
+	// 属性1はUV座標。
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), (GLvoid*)(3 * sizeof(GLfloat)));
 
-	// VAO�̃o�C���h������
+	// VAOのバインドを解除する。
 	glBindVertexArray(0);
 }
 
@@ -533,18 +543,18 @@ void init(void) {
 	printf("haba = %d\n", haba);
 }
 
-// RGBCG_image() �̑���ƂȂ�V�����֐�
-// renderInterleavedImage() ���C��
+// 左右の静止画をサブピクセル単位で交互に描画する。
+// 静止画用シェーダーの描画処理。
 void renderInterleavedImage() {
-	glUseProgram(shaderProgram); // ���̐V�����V�F�[�_�[��ǂݍ��ނ悤��init()���ύX
+	glUseProgram(shaderProgram); // 静止画用シェーダーを使用する。
 	glBindVertexArray(quadVAO);
 
-	// --- �]�������̃p�����[�^���v�Z ---
-	// calculate_stencil()�̖`���ɂ������v�Z�������Ɏ����Ă���
+	// 追跡位置とバリア幅から位相補正を計算する。
+	// 従来のステンシル計算と同じ基準を使う。
 	int totalShift = MiddleLine - 48 * haba;
 
-	// --- uniform�ϐ����V�F�[�_�[�ɑ��� ---
-	// �e�N�X�`���̐ݒ�
+	// 描画パラメーターをuniformへ渡す。
+	// 左右画像のテクスチャを設定する。
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, imageL);
 	glActiveTexture(GL_TEXTURE1);
@@ -558,23 +568,23 @@ void renderInterleavedImage() {
 	glUniform1f(u_img_manualShift, (float)SHIFT);
 	if (u_img_slantY >= 0)
 		glUniform1f(u_img_slantY, barrierSlantY);
-	//// �ǉ��ς݂Ȃ�
+	// 色補正uniformは現在無効。
 	//glUniform1f(u_img_middleLinePx, (float)MiddleLine / 3.0f);
 	//glUniform3f(u_img_rgbGain, colorGainR, colorGainG, colorGainB);
 	//glUniform1f(u_img_gamma, colorGamma);
 	//glUniform1f(u_img_crosstalk, crosstalkFactor);
 	//glUniform1i(u_img_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
-	// �`��
+	// 四角形を描画する。
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// ��Еt��
+	// 描画状態を解除する。
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
 	glBindVertexArray(0);
 }
 
-// ����p�̕`��֐�
-// renderInterleavedVideo() ���C��
+// 左右分割動画をサブピクセル単位で交互に描画する。
+// 動画用シェーダーの描画処理。
 void renderInterleavedVideo() {
 	GLuint videoTexID = VideoMode->getVideoTextureID();
 	if (videoTexID == 0) return;
@@ -582,11 +592,11 @@ void renderInterleavedVideo() {
 	glUseProgram(videoshaderProgram);
 	glBindVertexArray(quadVAO);
 
-	// --- �]�������̃p�����[�^���v�Z ---
+	// 追跡位置とバリア幅から位相補正を計算する。
 	int totalShift = MiddleLine - 48 * haba;
 
-	// --- uniform�ϐ����V�F�[�_�[�ɑ��� ---
-	// �e�N�X�`���̐ݒ�
+	// 描画パラメーターをuniformへ渡す。
+	// 左右分割動画のテクスチャを設定する。
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, videoTexID);
 	glUniform1i(u_vid_sbsTexture, 0);
@@ -596,74 +606,81 @@ void renderInterleavedVideo() {
 	glUniform1i(u_vid_timeStep, kk);
 	glUniform1f(u_vid_manualShift, (float)SHIFT);
 
-	// 旧方式の W + H 相当
+	// 旧方式の斜め座標W + Hに対応する係数。
 	if (u_vid_slantY >= 0)
 		glUniform1f(u_vid_slantY, barrierSlantY);
 
-	//// �ǉ��ς݂Ȃ�
+	// 色補正uniformは現在無効。
 	//glUniform1f(u_vid_middleLinePx, (float)MiddleLine / 3.0f);
 	//glUniform3f(u_vid_rgbGain, colorGainR, colorGainG, colorGainB);
 	//glUniform1f(u_vid_gamma, colorGamma);
 	//glUniform1f(u_vid_crosstalk, crosstalkFactor);
 	//glUniform1i(u_vid_enableColorCorrection, colorCorrectionEnabled ? 1 : 0);
-	// �`��
+	// 四角形を描画する。
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 
-	// ��Еt��
+	// 描画状態を解除する。
 	glUseProgram(0);
 	glActiveTexture(GL_TEXTURE0);
 	glBindVertexArray(0);
 }
 
-const double TARGET_HZ = 120.0;
-const auto TARGET_PERIOD = std::chrono::duration<double>(1.0 / TARGET_HZ);
-bool syncClockInitialized = false;
-std::chrono::steady_clock::time_point nextFrameDeadline;
-
-void DTimer(int totalMilliSeconds)
+void SendTimeDivisionFrame(int frameIndex)
 {
-    using steady_clock = std::chrono::steady_clock;
-    const auto targetPeriod = std::chrono::duration_cast<steady_clock::duration>(TARGET_PERIOD);
-    auto now = steady_clock::now();
+	static const int timeDivisionCommands[4] = {
+		TIME_DIV_0, TIME_DIV_1, TIME_DIV_2, TIME_DIV_3
+	};
 
-    if (!syncClockInitialized) {
-        nextFrameDeadline = now;
-        syncClockInitialized = true;
-    }
+	if (!arduinoSerial.is_open()) return;
+	if (running != 1) return;
 
-    bool shouldRender = false;
-
-    while (now >= nextFrameDeadline) {
-        shouldRender = true;
-        nextFrameDeadline += targetPeriod;
-    }
-
-    if (shouldRender) {
-        if (VideoSwitch && mrk == 1 && VideoMode) {
-            VideoMode->Update(0);
-        }
-
-        glutPostRedisplay();
-    }
-
-    auto remain = nextFrameDeadline - steady_clock::now();
-    auto remainMs = std::chrono::duration_cast<std::chrono::milliseconds>(remain).count();
-    unsigned int nextCallMs = (remainMs > 1) ? static_cast<unsigned int>(remainMs) : 1;
-
-    glutTimerFunc(nextCallMs, DTimer, 0);
+	SendArduinoCommand(timeDivisionCommands[frameIndex & 3]);
 }
 
-void SendTimeDivisionBlock02()
+void SendHeldFrame(int frameIndex)
 {
-    if (!arduinoSerial.is_open()) return;
-    if (running != 1) return;
+	static const int holdCommands[4] = {
+		HOLD_FRAME_0, HOLD_FRAME_1, HOLD_FRAME_2, HOLD_FRAME_3
+	};
 
-    if (kk == 0) {
-        SendArduinoCommand(TIME_DIV_0);
-    }
-    else if (kk == 2) {
-        SendArduinoCommand(TIME_DIV_2);
-    }
+	if (!arduinoSerial.is_open()) return;
+	SendArduinoCommand(holdCommands[frameIndex & 3]);
+}
+
+void RestartTimeDivisionSync(const char* modeName)
+{
+	frameHoldMode = false;
+	holdCommandPending = false;
+	running = 1;
+	kk = 0;
+	displayedKk = 0;
+
+	SendArduinoCommand(RESET_SYNC);
+	SendArduinoCommand(ENABLE_TIMEDIVISION);
+	printf("time-division sync reset: %s (kk = 0)\n", modeName);
+}
+
+void HoldFrameAndBacklight(int frameIndex)
+{
+	const int selectedFrame = frameIndex & 3;
+
+	frameHoldMode = true;
+	holdCommandPending = true;
+	running = 0;
+	kk = selectedFrame;
+	displayedKk = selectedFrame;
+	printf("frame hold: ON (kk = %d)\n", selectedFrame);
+	glutPostRedisplay();
+}
+
+void SelectFrameWhileHeld(int frameIndex)
+{
+	if (!frameHoldMode) {
+		printf("q/w/e/r are available after stopping with t.\n");
+		return;
+	}
+
+	HoldFrameAndBacklight(frameIndex);
 }
 
 int frame = 0;
@@ -672,35 +689,45 @@ int prt = 0;
 
 
 void disp(void) {
-	UpdateTracking();
+    UpdateTracking();
 	int i, e;
+
+	// V-Sync is the frame clock. Advance video exactly once for the frame that
+	// will now be presented instead of using an independent 120 Hz timer.
+	if (!frameHoldMode && VideoSwitch && mrk == 1 && VideoMode) {
+		VideoMode->Update(0);
+	}
+
 	glDrawBuffer(GL_BACK);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_STENCIL_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 	if (flag == 1) {
+		// Keep the exact kk that is about to be presented. Key input can then
+		// freeze this frame instead of the next frame in the sequence.
+		displayedKk = kk;
 
 
 		glDisable(GL_TEXTURE_2D);
 
 		if (mrk == 1) {
-			// ���惂�[�h
+			// 動画表示モード。
 
 
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
-			renderInterleavedVideo(); // ���V��������`��֐����Ăяo��
+			renderInterleavedVideo(); // 動画を描画する。
 		//	glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
 
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 		}
 		else {
-			// �摜���[�h
+			// 静止画表示モード。
 
-			// �ύX��F�V�����֐�����x�Ăяo������
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // FBO���N���A
+			// 静止画用シェーダーで描画する。
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 描画バッファーをクリアする。
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
 			//	glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
@@ -708,13 +735,13 @@ void disp(void) {
 			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		}
 
-		// kk��DTimer()����120Hz�����X�V����
+		// kk is advanced once after each V-Sync presentation.
 	}
 
 	else {
 		sprintf(filePath, "./images/IDW/%03dl.ppm", img);
 		ppm_reader(filePath, &image_texture[0][0][0][0]);
-		sprintf(filePath, "./images/IDW/%03dr.ppm", img);//�{����r
+		sprintf(filePath, "./images/IDW/%03dr.ppm", img);// 右目画像のファイル名を設定する。
 		ppm_reader(filePath, &image_texture[1][0][0][0]);
 
 		glEnable(GL_TEXTURE_2D);
@@ -733,15 +760,30 @@ void disp(void) {
 
 		qq = 0;
 		flag = 1;
+		// Texture preparation is not a presented time-division frame. Keep the
+		// current front buffer and render kk=0 on the next display callback.
+		glutPostRedisplay();
+		return;
 	}
 	glutSwapBuffers();
 
-	// 表示したkkに対応して、0または2だけArduinoへ送る
-	SendTimeDivisionBlock02();
+	// Send the hold command only after the selected display frame has been
+	// presented, then leave that backlight pair continuously on.
+	if (frameHoldMode && holdCommandPending) {
+		SendHeldFrame(displayedKk);
+		holdCommandPending = false;
+	}
+	else if (!frameHoldMode) {
+		// Send one command for every frame that has just been presented.
+		SendTimeDivisionFrame(displayedKk);
+	}
 
-	// 次フレーム用にkkを進める
-	if (running) {
+	// 提示したフレームに対応する時分割位相を進める。
+	if (running && !frameHoldMode) {
 		kk = (kk + 1) % 4;
+		// Queue exactly one next draw. glutSwapBuffers() above waits for V-Sync,
+		// so display phase and Arduino command cannot drift against a timer.
+		glutPostRedisplay();
 	}
 }
 
@@ -773,34 +815,44 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		break;
 	case 'q':
-		kk = 0;
-		glutDisplayFunc(disp);
+		SelectFrameWhileHeld(0);
 		break;
 	case 'w':
-		kk = 1;
-		glutDisplayFunc(disp);
+		SelectFrameWhileHeld(1);
 		break;
 	case 'e':
-		kk = 2;
-		glutDisplayFunc(disp);
+		SelectFrameWhileHeld(2);
 		break;
 	case 'r':
-		kk = 3;
-		glutDisplayFunc(disp);
+		SelectFrameWhileHeld(3);
 		break;
 	case 't':
-		if (running) {
-			running = 0;
-			SendArduinoCommand(DISABLE_TIMEDIVISION);
+		if (!frameHoldMode) {
+			// kk already points to the next frame after swap, so hold the
+			// frame that is actually visible instead.
+			HoldFrameAndBacklight(displayedKk);
 		}
 		else {
+			frameHoldMode = false;
+			holdCommandPending = false;
 			running = 1;
 			kk = 0;
 			SendArduinoCommand(RESET_SYNC);
 			SendArduinoCommand(ENABLE_TIMEDIVISION);
+			printf("frame hold: OFF (restart from kk = 0)\n");
+			glutPostRedisplay();
 		}
-		glutDisplayFunc(disp);
 		break;
+    case 'j':
+        horizontalTrackingGain = std::max(0.1f, horizontalTrackingGain - 0.1f);
+        printf("Horizontal tracking gain: %.2f\n", horizontalTrackingGain);
+        glutPostRedisplay();
+        break;
+    case 'J':
+        horizontalTrackingGain = std::min(10.0f, horizontalTrackingGain + 0.1f);
+        printf("Horizontal tracking gain: %.2f\n", horizontalTrackingGain);
+        glutPostRedisplay();
+        break;
 	case 'o':
 		SHIFT += 1;
 		glutDisplayFunc(disp);
@@ -944,21 +996,23 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		{
 			VideoMode->Initialize();
 
-			// Initialize直後に少し待つ
+			// 動画の初期化に失敗した場合は終了する。
 			Sleep(100);
 
 			VideoMode->SetSpeed(16000);
 
-			// ここで初めて動画更新を許可
+			// 初期化後に動画表示へ切り替える。
 			VideoSwitch = true;
 		}
 
+		RestartTimeDivisionSync("video");
 		glutPostRedisplay();
 		break;
 	case 'M':
 		mrk = 0;
 		flag = 0;
-		glutDisplayFunc(disp);
+		RestartTimeDivisionSync("still image");
+		glutPostRedisplay();
 		break;
 	case 'b':
 		eyeright = 1;
@@ -1022,7 +1076,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case'D':
 		habat += 1;
 		break;
-		// KeyEvent() �֐��ɃL�[��ǉ�
+		// キーボードイベントを動画処理へ渡す。
 	case 'f':
 		barrierSlantY -= 0.02f;
 		if (barrierSlantY < 0.1f) barrierSlantY = 0.1f;
@@ -1065,6 +1119,14 @@ static void KeySpecialEvent(int key, int x, int y) {
 
 
 int main(int argc, char ** argv) {
+    if (const char* gainText = std::getenv("PROJECTPB_HORIZONTAL_GAIN")) {
+        char* end = nullptr;
+        const float gain = std::strtof(gainText, &end);
+        if (end != gainText && *end == '\0' && std::isfinite(gain) && gain >= 0.1f && gain <= 10.0f)
+            horizontalTrackingGain = gain;
+        else std::cerr << "Invalid PROJECTPB_HORIZONTAL_GAIN; using 0.7.\n";
+    }
+    printf("Horizontal tracking gain: %.2f (j decreases, Shift+j increases)\n", horizontalTrackingGain);
 
 	MMRESULT timerResult = timeBeginPeriod(1);
 	if (timerResult != TIMERR_NOERROR) {
@@ -1072,8 +1134,18 @@ int main(int argc, char ** argv) {
 	}
 
 
-	arduinoSerial.open("COM3"); // Arduino�̃|�[�g���ɍ��킹�ĕύXCOm1�̓f�o�b�O�p
-	arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200));
+    const char* serialPort = std::getenv("PROJECTPB_SERIAL_PORT");
+    if (!serialPort || !*serialPort) serialPort = "COM3";
+    boost::system::error_code serialError;
+    arduinoSerial.open(serialPort, serialError);
+    if (!serialError)
+        arduinoSerial.set_option(boost::asio::serial_port_base::baud_rate(115200), serialError);
+    if (serialError) {
+        std::cerr << "Cannot initialize Arduino on " << serialPort << ": "
+                  << serialError.message() << "\nEdit PROJECTPB_SERIAL_PORT in Start.cmd.\n";
+        timeEndPeriod(1);
+        return 1;
+    }
 	SendArduinoCommand(RESET_SYNC);
 	SendArduinoCommand(ENABLE_TIMEDIVISION);
 	glutInit(&argc, argv);
@@ -1085,19 +1157,10 @@ int main(int argc, char ** argv) {
 
 	VideoMode = std::unique_ptr<vmlab::DrawVideo>(new vmlab::DrawVideo);
 	VideoSwitch = false;
-	glutTimerFunc(0, DTimer, 0);
 
 	init();
-    // Resolve models relative to the executable, not Visual Studio's working directory.
-    char executable[MAX_PATH];
-    const DWORD length = GetModuleFileNameA(nullptr, executable, MAX_PATH);
-    if (length > 0 && length < MAX_PATH) {
-        const std::string path(executable, length);
-        const auto slash = path.find_last_of("/\\");
-        trackingClient.Start(path.substr(0, slash) + "/models");
-    } else {
-        std::cerr << "Cannot resolve RealSense model directory. Tracking disabled.\n";
-    }
+    // 外部OSCを受信する。RealSenseのカメラはEyeTracker-RSだけが開く。
+    trackingClient.Start();
 	glutDisplayFunc(disp);
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);

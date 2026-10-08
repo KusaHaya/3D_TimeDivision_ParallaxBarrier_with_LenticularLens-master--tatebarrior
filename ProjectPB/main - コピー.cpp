@@ -1,4 +1,4 @@
-#define _CRT_SECURE_NO_WARNINGS
+ï»¿#define _CRT_SECURE_NO_WARNINGS
 
 #include <iostream>
 #include "TCPClient.h"
@@ -19,8 +19,8 @@
 #define haba_first 180
 #define WID 528
 #define HGT 297
-#define SHIFT 5//Ã~‰æ‚Æ“®‰æ‚Ìƒpƒ^[ƒ“‚ÌŠÔ‚Å¶‚¶‚éˆÊ’u·‚Ì•â³iƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO‚ÆƒXƒeƒ“ƒVƒ‹ƒ}ƒXƒNj//ƒpƒlƒ‹‚²‚Æ‚Éİ’è‚·‚é•K—v‚ ‚è
-#define SFT 4//ƒLƒƒƒŠƒuƒŒ[ƒVƒ‡ƒ“‚Ì•”’‚Ì’†SˆÊ’u•â³
+#define SHIFT 5//é™æ­¢ç”»ã¨å‹•ç”»ã®ãƒ‘ã‚¿ãƒ¼ãƒ³ã®é–“ã§ç”Ÿã˜ã‚‹ä½ç½®å·®ã®è£œæ­£ï¼ˆãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒãƒƒãƒ”ãƒ³ã‚°ã¨ã‚¹ãƒ†ãƒ³ã‚·ãƒ«ãƒã‚¹ã‚¯ï¼‰//ãƒ‘ãƒãƒ«ã”ã¨ã«è¨­å®šã™ã‚‹å¿…è¦ã‚ã‚Š
+#define SFT 4//ã‚­ãƒ£ãƒªãƒ–ãƒ¬ãƒ¼ã‚·ãƒ§ãƒ³ã®é»’ç™½ã®ä¸­å¿ƒä½ç½®è£œæ­£
 #define ResolutionW 1920
 #define ResolutionH 1080
 
@@ -29,7 +29,7 @@
 #define INIX2 2430 //1920+510
 #define INIY2 160
 
-//teapot‚É“\‚étexture‚Ìc‰¡i2^n 2^m‚Å‚È‚¢‚Æ‚¢‚¯‚È‚¢j
+//teapotã«è²¼ã‚‹textureã®ç¸¦æ¨ªï¼ˆ2^n 2^mã§ãªã„ã¨ã„ã‘ãªã„ï¼‰
 #define TEAPOT_HEIGHT 512
 #define TEAPOT_WIDTH  512
 
@@ -128,17 +128,17 @@ int FrameId = 0;
 
 bool ReserveLR = true;
 
-//teapotƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO
+//teapotãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒãƒƒãƒ”ãƒ³ã‚°
 static GLubyte Teapotimage[TEAPOT_HEIGHT][TEAPOT_WIDTH][4];
 GLuint teapot;
 
-//teapot‰ñ“]
+//teapotå›è»¢
 int preX = 0, preY = 0, dx, dy, IntegralX = 0, IntegralY = 0;
 int drugMode = 0;
 double sqxy = 0;
 GLfloat rMat[16], rMat2[16], rMat3[16];
 
-//Teapot‚É‚Í‚éƒeƒNƒXƒ`ƒƒ(TGAƒtƒ@ƒCƒ‹)‚Ì“Ç‚İ‚İor¶¬
+//Teapotã«ã¯ã‚‹ãƒ†ã‚¯ã‚¹ãƒãƒ£(TGAãƒ•ã‚¡ã‚¤ãƒ«)ã®èª­ã¿è¾¼ã¿orç”Ÿæˆ
 void TeapotInitTexture(void){
 
 	FILE *fp;
@@ -146,11 +146,11 @@ void TeapotInitTexture(void){
 	int x, z;
 
 	// texture file open 
-	if ((error = fopen_s(&fp, "test.tga", "rb")) != 0){//fopen‚¾‚Æƒrƒ‹ƒh‚É“{‚ç‚ê‚½‚Ì‚Åfopen_sg—p
+	if ((error = fopen_s(&fp, "test.tga", "rb")) != 0){//fopenã ã¨ãƒ“ãƒ«ãƒ‰æ™‚ã«æ€’ã‚‰ã‚ŒãŸã®ã§fopen_sä½¿ç”¨
 		fprintf(stderr, "texture file cannot open\n");
 		return;
 	}
-	fseek(fp, 18, SEEK_SET);//TGAƒtƒ@ƒCƒ‹‚ÌÅ‰18byte‚ÍRGBA‚Å‚Í‚È‚­‰æ‘œ‚Ì‘å‚«‚³‚Æ‚©‚»‚¤‚¢‚¤ƒf[ƒ^‚¾‚©‚ç”ò‚Î‚·B
+	fseek(fp, 18, SEEK_SET);//TGAãƒ•ã‚¡ã‚¤ãƒ«ã®æœ€åˆ18byteã¯RGBAã§ã¯ãªãç”»åƒã®å¤§ãã•ã¨ã‹ãã†ã„ã†ãƒ‡ãƒ¼ã‚¿ã ã‹ã‚‰é£›ã°ã™ã€‚
 	for (x = 0; x<TEAPOT_HEIGHT; x++){
 		for (z = 0; z<TEAPOT_WIDTH; z++){
 			Teapotimage[x][z][2] = fgetc(fp);// B 
@@ -162,7 +162,7 @@ void TeapotInitTexture(void){
 	fclose(fp);
 }
 
-//Teapod‚ÉƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO‚·‚é‚½‚ß‚Ì€”õ
+//Teapodã«ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒãƒƒãƒ”ãƒ³ã‚°ã™ã‚‹ãŸã‚ã®æº–å‚™
 void TeapotInit(void){
 	TeapotInitTexture();
 
@@ -189,19 +189,19 @@ void TeapotInit(void){
 
 void mySetLight(void)
 {
-	GLfloat light_diffuse[] = { 0.9, 0.9, 0.9, 1.0 };	// ŠgU”½ËŒõ
-	GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };	// ‹¾–Ê”½ËŒõ
-	GLfloat light_ambient[] = { 0.3, 0.3, 0.3, 0.1 };	// ŠÂ‹«Œõ
-	GLfloat light_position[] = { 0.0, 0.0, 100.0, 1.0 };	// ˆÊ’u‚Æí—Ş
+	GLfloat light_diffuse[] = { 0.9, 0.9, 0.9, 1.0 };	// æ‹¡æ•£åå°„å…‰
+	GLfloat light_specular[] = { 1.0, 1.0, 1.0, 1.0 };	// é¡é¢åå°„å…‰
+	GLfloat light_ambient[] = { 0.3, 0.3, 0.3, 0.1 };	// ç’°å¢ƒå…‰
+	GLfloat light_position[] = { 0.0, 0.0, 100.0, 1.0 };	// ä½ç½®ã¨ç¨®é¡
 
-	// ŒõŒ¹‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);	 // ŠgU”½ËŒõ‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular); // ‹¾–Ê”½ËŒõ‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);	 // ŠÂ‹«Œõ‚Ìİ’è
-	glLightfv(GL_LIGHT0, GL_POSITION, light_position); // ˆÊ’u‚Æí—Ş‚Ìİ’è
+	// å…‰æºã®è¨­å®š
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);	 // æ‹¡æ•£åå°„å…‰ã®è¨­å®š
+	glLightfv(GL_LIGHT0, GL_SPECULAR, light_specular); // é¡é¢åå°„å…‰ã®è¨­å®š
+	glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);	 // ç’°å¢ƒå…‰ã®è¨­å®š
+	glLightfv(GL_LIGHT0, GL_POSITION, light_position); // ä½ç½®ã¨ç¨®é¡ã®è¨­å®š
 
-	glShadeModel(GL_SMOOTH);	// ƒVƒF[ƒfƒBƒ“ƒO‚Ìí—Ş‚Ìİ’è
-	glEnable(GL_LIGHT0);		// ŒõŒ¹‚Ì—LŒø‰»
+	glShadeModel(GL_SMOOTH);	// ã‚·ã‚§ãƒ¼ãƒ‡ã‚£ãƒ³ã‚°ã®ç¨®é¡ã®è¨­å®š
+	glEnable(GL_LIGHT0);		// å…‰æºã®æœ‰åŠ¹åŒ–
 }
 
 void List()
@@ -280,7 +280,7 @@ void initStencilMask()
 	int R_W = 1920;
 	int R_H = 1080;
 	int i, j, k;
-	int CONST_1 = 0 , CONST_2 = 0 , CONST_3 =2;//—v’²® -> ’²®Ï
+	int CONST_1 = 0 , CONST_2 = 0 , CONST_3 =2;//è¦èª¿æ•´ -> èª¿æ•´æ¸ˆ
 	for (k = 0; k < 12; k++)
 		for (i = 0; i < R_W; i++)
 	for (j = 0; j < R_H; j++){
@@ -314,7 +314,7 @@ void initStencilMask()
 	}
 
 
-	//----- —ú‚ğ•`‚­ -----
+	//----- ç°¾ã‚’æã -----
 	for (k = 0; k < 12; k++){
 		stencil_mask[k] = glGenLists(1);
 		glNewList(stencil_mask[k], GL_COMPILE_AND_EXECUTE);
@@ -632,7 +632,7 @@ void init(void){
 	//	glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
 	//gluBuild2DMipmaps(GL_TEXTURE_2D, 3, 1024, 1024, GL_RGB, GL_UNSIGNED_BYTE, view);
 
-	TeapotInit();//ƒvƒ‰ƒOƒ‰ƒ€Às’†‚É m 1 ‚Ì‡‚Å‰Ÿ‚·‚Æ•\¦‚³‚ê‚éteapot‚Ö‚ÌƒeƒNƒXƒ`ƒƒƒ}ƒbƒsƒ“ƒO‚Ì€”õ
+	TeapotInit();//ãƒ—ãƒ©ã‚°ãƒ©ãƒ å®Ÿè¡Œä¸­ã« m 1 ã®é †ã§æŠ¼ã™ã¨è¡¨ç¤ºã•ã‚Œã‚‹teapotã¸ã®ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒãƒƒãƒ”ãƒ³ã‚°ã®æº–å‚™
 
 	ht = 0;
 	printf("head-tracking: OFF\n");

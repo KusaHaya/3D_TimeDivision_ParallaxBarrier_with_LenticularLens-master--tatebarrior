@@ -1,8 +1,10 @@
+﻿#define _CRT_SECURE_NO_WARNINGS
 #include "Media.h"
 
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <cstdlib>
 
 
 Uint8*	gAudioChunk;
@@ -65,7 +67,9 @@ namespace vmlab
 		printf("Start Capture!");
 		bool GetDevice = false;
 
-		if (avformat_open_input(&pFormatCtx, "C:/avater.mp4", NULL, NULL) != 0) {
+        const char* videoPath = std::getenv("PROJECTPB_VIDEO");
+        if (!videoPath || !*videoPath) videoPath = "./media/avater.mp4";
+        if (avformat_open_input(&pFormatCtx, videoPath, NULL, NULL) != 0) {
 			//		if (avformat_open_input(&pFormatCtx, "C:/All_Movie.mp4", NULL, NULL) != 0){
 			//		if (avformat_open_input(&pFormatCtx, "C:/bigt.mp4", NULL, NULL) != 0){
 			//		if (avformat_open_input(&pFormatCtx, "C:/tombraider_origin.mp4", NULL, NULL) != 0){
@@ -103,14 +107,14 @@ namespace vmlab
 		//pCodecCtx = pFormatCtx->streams[videoindex]->codec;
 		//pCodecCtx->rc_buffer_size *= 10;
 		pCodec = avcodec_find_decoder(pFormatCtx->streams[videoindex]->codecpar->codec_id);
-		/*�ǋL*/
+		/*追記*/
 		pCodecCtx = avcodec_alloc_context3(pCodec);
 		pCodecCtx->rc_buffer_size *= 10;
 		if (pCodec == NULL)
 		{
 			printf("Codec not found.\n");
 		}
-		/*�ǋL*/
+		/*追記*/
 		if (avcodec_parameters_to_context(pCodecCtx, pFormatCtx->streams[videoindex]->codecpar) < 0) {
 			printf("avcodec_parameters_to_context failed\n");
 		}

@@ -1,4 +1,4 @@
-#include <boost/thread.hpp>
+﻿#include <boost/thread.hpp>
 #include "TCPConnector.h"
 
 void TCPConnector::OpenAsync()

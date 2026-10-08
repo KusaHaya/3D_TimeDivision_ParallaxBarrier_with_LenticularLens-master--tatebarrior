@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <boost/asio.hpp>

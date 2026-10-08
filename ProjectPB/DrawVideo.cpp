@@ -1,4 +1,4 @@
-#include <filesystem>
+Ôªø#include <filesystem>
 #include "DrawVideo.h"
 #include "Viewport.hpp"
 #include "Setting.h"
@@ -221,8 +221,8 @@ namespace vmlab
 
 			glTexCoord2f(0.5662f, 1.00f); glVertex3d(268.2, -37, 0);/*1102 / w, 1.00f*/
 			glTexCoord2f(0.5662f, 0.118f);		glVertex3d(268.2, 987, 0);/*1102 / w, 95 / h*/
-			/*0.60fÇ™âº*/glTexCoord2f(0.60f, 0.118f);		glVertex3d(268.2 - (-26.6), 987, 0);/*1.00f, 95 / h*//*2004*/
-			/*0.60fÇ™âº*/glTexCoord2f(0.60f, 1.00f);	glVertex3d(268.2 - (-26.6), -37, 0);/*2004*/
+			/*0.60f„Åå‰ªÆ*/glTexCoord2f(0.60f, 0.118f);		glVertex3d(268.2 - (-26.6), 987, 0);/*1.00f, 95 / h*//*2004*/
+			/*0.60f„Åå‰ªÆ*/glTexCoord2f(0.60f, 1.00f);	glVertex3d(268.2 - (-26.6), -37, 0);/*2004*/
 			glEnd();
 		}
 		glBindTexture(GL_TEXTURE_2D, 0);
