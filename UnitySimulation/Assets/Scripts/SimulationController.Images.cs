@@ -18,7 +18,7 @@ namespace ParallaxSimulation
         float imageGainPresented;
         Texture2D ownedLeft,ownedRight;
         string leftPath="",rightPath="";
-        int displayTab, imagePattern, conflictPolicy;
+        int displayTab=2, imagePattern, conflictPolicy;
         // 0 geometric, 1 original still-image shader, 2 original SBS integer correction.
         int allocationMode=1;
         float legacyHaba=330,legacyMiddle=3420,legacyShift=1,legacySlant=1;

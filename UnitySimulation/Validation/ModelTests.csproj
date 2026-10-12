@@ -2,6 +2,7 @@
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><NuGetAudit>false</NuGetAudit></PropertyGroup>
   <ItemGroup>
     <Compile Include="../Assets/Scripts/OpticalModel.cs" />
+    <Compile Include="../Assets/Scripts/LenticularModel.cs" />
     <Compile Include="../Assets/Editor/ModelChecks.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>

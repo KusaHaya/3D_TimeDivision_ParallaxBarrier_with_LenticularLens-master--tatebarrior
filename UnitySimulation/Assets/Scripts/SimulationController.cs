@@ -76,7 +76,7 @@ namespace ParallaxSimulation
             }
             // A phase change always renders a complete matching set immediately.
             // Never update the light phase while keeping an old LCD/eye preview.
-            if(phase!=presentedPhase || Time.unscaledTime>=nextFrame) { nextFrame=Time.unscaledTime+.1f; DrawPreviews(); }
+            if(displayTab!=2 && (phase!=presentedPhase || Time.unscaledTime>=nextFrame)) { nextFrame=Time.unscaledTime+.1f; DrawPreviews(); }
             if(capturePath!=null && !captureQueued && report!=null)
             { captureQueued=true; StartCoroutine(CaptureAndQuit()); }
         }
@@ -175,6 +175,12 @@ namespace ParallaxSimulation
             GUI.Box(new Rect(0,0,1440,960),"");
             GUI.Label(new Rect(20,12,1390,35),"TIME-DIVISION PARALLAX  /  OPTICAL SIMULATOR",title);
             GUI.Label(new Rect(20,50,1380,40),"Fixed oblique source images  >  LCD allocation  >  tracked eyes    |    Geometry simulation; NOT a hardware output",small);
+            displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST","GEOMETRY","LED / LENS TEST"});
+            if(displayTab==2) {
+                GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
+                scroll=GUILayout.BeginScrollView(scroll);LensControls();GUILayout.EndScrollView();GUILayout.EndArea();
+                DrawLensPanels();return;
+            }
             GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
             scroll=GUILayout.BeginScrollView(scroll);
             ImageControls();
@@ -215,7 +221,7 @@ namespace ParallaxSimulation
             GUILayout.EndHorizontal();
             if(GUILayout.Button("Reset theory defaults")) { settings=new OpticalSettings();tracking=true;phase=0;zoomWidth=24;mapX=mapY=0; }
             GUILayout.EndScrollView();GUILayout.EndArea();
-            displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST - left / right eyes","GEOMETRY - rays / coverage"});
+
             if(displayTab==0) {DrawImagePanels();return;}
             GUI.Label(new Rect(390,126,1000,28),cycleView?"FOUR-PHASE EXCLUSIVE COVERAGE":"LCD SUBPIXEL VISIBILITY  /  PHASE "+presentedPhase,heading);
             GUI.DrawTexture(new Rect(390,157,1024,402),mapTexture,ScaleMode.ScaleToFit,false);
@@ -277,6 +283,7 @@ namespace ParallaxSimulation
             if(lines!=null) foreach(var l in lines) if(l!=null) Destroy(l.sharedMaterial);
             Destroy(visibility);Destroy(lineMaterial);
             DestroyImages();
+            if(illumination!=null)Destroy(illumination);
         }
     }
 }

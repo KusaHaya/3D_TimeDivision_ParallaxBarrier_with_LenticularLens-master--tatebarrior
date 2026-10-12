@@ -8,6 +8,28 @@ public static class ModelChecks
     static void Near(double a,double b,string message) { Check(Math.Abs(a-b)<1e-8,message+": "+a+" != "+b); }
     public static void Run()
     {
+        var lens=new LenticularSettings();
+        lens.screenDistance=lens.ImageDistance;
+        Near(lens.Defocus,0,"Thin lens focus condition");
+        Near(lens.ScreenWidth,lens.ImageWidth,"Footprint at image plane");
+        Near(lens.Ray(0,-lens.HorizontalPitch/2,1,lens.ImageDistance),
+            lens.Ray(0,lens.HorizontalPitch/2,1,lens.ImageDistance),"Aperture rays converge");
+        foreach(double screen in new[]{3.0,6.5,10.0}) {
+            lens.screenDistance=screen;
+            double lo=double.MaxValue,hi=double.MinValue;
+            foreach(double a in new[]{-lens.HorizontalPitch/2,lens.HorizontalPitch/2})
+                foreach(double led in new[]{-1.5,1.5}) {
+                    double x=lens.Ray(0,a,led,screen);lo=Math.Min(lo,x);hi=Math.Max(hi,x);
+                }
+            Near(hi-lo,lens.ScreenWidth,"Analytic footprint matches extreme traced rays");
+        }
+        Near(LenticularSettings.Density(0,2,1),.5,"Uniform overlap centre");
+        Near(LenticularSettings.Density(1,2,1),.25,"Uniform overlap ramp");
+        Near(LenticularSettings.Density(2,2,1),0,"Outside footprint");
+        lens.screenDistance=6.5;lens.groupsEachSide=0;
+        var profile=lens.Profile(8192,8);
+        double energy=0;foreach(double v in profile)energy+=v*8/8192;
+        Check(energy>8/lens.ScreenPeriod-1 && energy<8/lens.ScreenPeriod+1,"Profile integrated pair count");
         var s=new OpticalSettings();s.Validate();Near(s.Gap,.141,"Plane spacing");
         // Independent analytic example: line from (10,20,-2) to (30,60,8)
         // reaches z=0 at one fifth of its length, at (14,28,0).
