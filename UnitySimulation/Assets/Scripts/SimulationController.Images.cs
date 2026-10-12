@@ -12,6 +12,7 @@ namespace ParallaxSimulation
         RenderTexture[] imageViews;
         RenderTexture[] phaseDrives;
         string driveCacheKey="";
+        Texture2D cachedLeftImage,cachedRightImage;
         int imagePhase=-1;
         bool imageCyclePresented;
         float imageGainPresented;
@@ -58,9 +59,9 @@ namespace ParallaxSimulation
             eyePreview.SetFloat("_HasLeft",leftImage!=null?1:0);eyePreview.SetFloat("_HasRight",rightImage!=null?1:0);
             eyePreview.SetFloat("_Pattern",imagePattern);eyePreview.SetFloat("_Conflict",conflictPolicy);
             eyePreview.SetFloat("_Cycle",integrateCycle?1:0);eyePreview.SetFloat("_Gain",imageGain);
-            string key=JsonUtility.ToJson(targets)+"/"+imagePattern+"/"+conflictPolicy+"/"
-                +(leftImage!=null?leftImage.GetInstanceID():0)+"/"+(rightImage!=null?rightImage.GetInstanceID():0);
-            if(key!=driveCacheKey) {
+            string key=JsonUtility.ToJson(targets)+"/"+imagePattern+"/"+conflictPolicy;
+            // Compare texture references directly; no version-specific object ID API.
+            if(key!=driveCacheKey || cachedLeftImage!=leftImage || cachedRightImage!=rightImage) {
                 // Unbind old SRVs before writing these same buffers. The drive pass
                 // does not sample them, but D3D resource hazards must still be avoided.
                 for(int k=0;k<4;k++) eyePreview.SetTexture("_Drive"+k,Texture2D.blackTexture);
@@ -70,6 +71,7 @@ namespace ParallaxSimulation
                     Graphics.Blit(Texture2D.whiteTexture,phaseDrives[k],eyePreview);
                 }
                 driveCacheKey=key;
+                cachedLeftImage=leftImage;cachedRightImage=rightImage;
             }
             for(int k=0;k<4;k++) eyePreview.SetTexture("_Drive"+k,phaseDrives[k]);
             eyePreview.SetFloat("_Phase",framePhase);
@@ -196,3 +198,4 @@ namespace ParallaxSimulation
         }
     }
 }
+
