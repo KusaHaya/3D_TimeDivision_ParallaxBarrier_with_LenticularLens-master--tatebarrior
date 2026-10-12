@@ -78,6 +78,26 @@ namespace ParallaxSimulation
             for(int k=0;k<4;k++) { int c=Classify(x,y,k,s); if(c==1) mask|=1; if(c==2) mask|=2; }
             return mask;
         }
+        // One LCD drive value must be shared by both observers when their paths overlap.
+        public static double Drive(int classification,double left,double right,int conflict)
+        {
+            if(classification==1) return left;
+            if(classification==2) return right;
+            if(classification!=3 || conflict==0) return 0;
+            return conflict==1?(left+right)*.5:left;
+        }
+        public static double Received(double x,double y,OpticalSettings geometry,Point3 targetLeft,
+            Point3 targetRight,Point3 observer,double left,double right,int conflict,int phase,bool cycle)
+        {
+            double a=SourceCoordinate(x,y,targetLeft,geometry),b=SourceCoordinate(x,y,targetRight,geometry);
+            double seen=SourceCoordinate(x,y,observer,geometry),sum=0;
+            for(int k=0;k<4;k++) {
+                if(!cycle && k!=phase) continue;
+                int c=(Visible(a,k,geometry)?1:0)|(Visible(b,k,geometry)?2:0);
+                if(Visible(seen,k,geometry)) sum+=Drive(c,left,right,conflict);
+            }
+            return sum/(cycle?4:1);
+        }
     }
     public sealed class CoverageReport
     {

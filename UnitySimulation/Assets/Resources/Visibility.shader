@@ -9,18 +9,9 @@ Shader "Parallax/Visibility"
             #pragma fragment frag
             #pragma target 3.0
             #include "UnityCG.cginc"
-            float4 _EyeL, _EyeR, _Region, _Panel;
-            float _Gap, _Period, _Width, _Step, _Offset, _Slope, _Phase, _Mode, _Direction;
-            float sourceCoord(float2 p, float3 e) {
-                float r=_Gap/e.z;
-                return (1+r)*(p.x+_Slope*p.y)-r*(e.x+_Slope*e.y);
-            }
-            bool visible(float s,int k) {
-                float d=s-_Offset-_Direction*k*_Step;
-                d-= _Period*floor(d/_Period+0.5);
-                return abs(d)<=_Width*0.5;
-            }
-            int classify(float a,float b,int k) { return (visible(a,k)?1:0)+(visible(b,k)?2:0); }
+            #include "OpticalRays.cginc"
+            float4 _Region;
+            float _Mode;
             fixed4 frag(v2f_img i):SV_Target {
                 float2 p=(i.uv-.5)*_Region.zw+_Region.xy;
                 if(abs(p.x)>_Panel.x*.5 || abs(p.y)>_Panel.y*.5) return fixed4(.025,.03,.045,1);

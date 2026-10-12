@@ -33,6 +33,19 @@ public static class ModelChecks
         r=CoverageAnalyzer.Analyze(s,null,CancellationToken.None);
         Check(r.coverage[3]==r.Total,"Constructed full-resolution case");
         Check(r.pixelsBothAllRgb==s.pixelsX*s.pixelsY,"Full RGB pixels");
+        // Same LCD drive is used for both eyes; a physically overlapping pixel cannot
+        // independently provide different source values to each eye.
+        Near(OpticalModel.Drive(3,1,0,0),0,"Overlap blackout");
+        Near(OpticalModel.Drive(3,1,0,1),.5,"Shared overlap mixture");
+        Near(OpticalModel.Drive(3,1,0,2),1,"Left priority shared drive");
+        Near(OpticalModel.Drive(0,1,1,1),0,"No-ray drive");
+        Near(OpticalModel.Received(.043,.078,s,s.Eye(false),s.Eye(true),s.Eye(false),.2,.8,0,0,true),.2/4,"Ideal left image delivery");
+        Near(OpticalModel.Received(.043,.078,s,s.Eye(false),s.Eye(true),s.Eye(true),.2,.8,0,0,true),.8/4,"Ideal right image delivery");
+        var actual=new OpticalSettings();
+        Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(false),1,0,1,0,true),.125,"Overlap left received mean");
+        Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(true),1,0,1,0,true),.125,"Overlap leaks into black right input");
+        Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(true),1,0,0,0,true),0,"Blackout prevents this leak");
+        Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(true),1,0,1,0,false),.5,"Single-phase brightness");
         var cancel=new CancellationTokenSource();cancel.Cancel();bool cancelled=false;
         try { CoverageAnalyzer.Analyze(s,null,cancel.Token); } catch(OperationCanceledException) {cancelled=true;}
         Check(cancelled,"Analysis cancellation");

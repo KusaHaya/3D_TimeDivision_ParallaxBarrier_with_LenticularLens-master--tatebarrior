@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace ParallaxSimulation
 {
-    public sealed class SimulationController : MonoBehaviour
+    public sealed partial class SimulationController : MonoBehaviour
     {
         public OpticalSettings settings = new OpticalSettings();
         public int phase;
@@ -57,13 +57,14 @@ namespace ParallaxSimulation
                 lines[n].useWorldSpace=true; lines[n].widthMultiplier=1.5f;
             }
             activeSettings=settings.Copy();
+            InitImages();
             string[] args=Environment.GetCommandLineArgs();
             for(int i=0;i+1<args.Length;i++) if(args[i]=="--capture") capturePath=args[i+1];
             StartAnalysis();
         }
         void Update()
         {
-            // h toggles simulated eye tracking; optics/phase controls remain live.
+            // h freezes allocation targets only; actual simulated eyes can still move.
             if(Input.GetKeyDown(KeyCode.H)) ToggleTracking();
             if(animate) { phaseClock+=Time.unscaledDeltaTime; if(phaseClock>=.5f) { phase=(phase+1)%4;phaseClock=0; } }
             if(analysis!=null && analysis.IsCompleted)
@@ -73,12 +74,14 @@ namespace ParallaxSimulation
                 else { report=analysis.Result; reportSettings=jobSettings;reportJson=JsonUtility.ToJson(reportSettings); status="Scan complete. Results are for a static eye pose, RGB centres only."; }
                 analysis=null; cancellation.Dispose(); cancellation=null;
             }
-            if(Time.unscaledTime>=nextFrame) { nextFrame=Time.unscaledTime+.05f; DrawPreviews(); }
+            if(Time.unscaledTime>=nextFrame) { nextFrame=Time.unscaledTime+.1f; DrawPreviews(); }
             if(capturePath!=null && !captureQueued && report!=null)
             { captureQueued=true; StartCoroutine(CaptureAndQuit()); }
         }
         void ToggleTracking() { tracking=!tracking; if(!tracking) activeSettings=settings.Copy(); }
         OpticalSettings Current()
+        { return settings.Copy(); }
+        OpticalSettings Allocation()
         {
             var s=settings.Copy();
             if(!tracking) { s.headX=activeSettings.headX;s.headY=activeSettings.headY;s.headZ=activeSettings.headZ;s.ipd=activeSettings.ipd;s.yawDegrees=activeSettings.yawDegrees; }
@@ -107,6 +110,7 @@ namespace ParallaxSimulation
             visibility.SetFloat("_Direction",s.phaseDirection);visibility.SetFloat("_Phase",phase);visibility.SetFloat("_Mode",cycleView?1:0);
             Graphics.Blit(Texture2D.whiteTexture,mapTexture,visibility);
             DrawDiagram(s);
+            if(displayTab==0) RenderImages(s);
         }
         Vector3 V(Point3 p) { return new Vector3((float)p.x,(float)p.y,(float)p.z); }
         void Line(int index,Color color,params Vector3[] points)
@@ -164,8 +168,9 @@ namespace ParallaxSimulation
             GUI.Label(new Rect(20,50,1380,40),"Fixed oblique source images  >  LCD allocation  >  tracked eyes    |    Geometry simulation; NOT a hardware output",small);
             GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
             scroll=GUILayout.BeginScrollView(scroll);
+            ImageControls();
             GUILayout.Label("1  OBSERVER",heading);
-            bool next=GUILayout.Toggle(tracking,"Tracking ON [h] - use current eye pose"); if(next!=tracking) ToggleTracking();
+            bool next=GUILayout.Toggle(tracking,"Tracking ON [h] - update LCD allocation"); if(next!=tracking) ToggleTracking();
             Slider("Head X (mm)",ref settings.headX,-250,250,"F1");Slider("Head Y (mm)",ref settings.headY,-150,150,"F1");
             Slider("Eye distance from LCD (mm)",ref settings.headZ,150,1500,"F1");Slider("Eye separation (mm)",ref settings.ipd,40,80,"F1");
             Slider("Head yaw / eye depth difference (deg)",ref settings.yawDegrees,-40,40,"F1");
@@ -199,8 +204,10 @@ namespace ParallaxSimulation
             GUILayout.EndHorizontal();
             if(GUILayout.Button("Reset theory defaults")) { settings=new OpticalSettings();tracking=true;phase=0;zoomWidth=24;mapX=mapY=0; }
             GUILayout.EndScrollView();GUILayout.EndArea();
-            GUI.Label(new Rect(390,94,1000,28),cycleView?"FOUR-PHASE EXCLUSIVE COVERAGE":"LCD SUBPIXEL VISIBILITY  /  PHASE "+phase,heading);
-            GUI.DrawTexture(new Rect(390,127,1024,432),mapTexture,ScaleMode.StretchToFill,false);
+            displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST - left / right eyes","GEOMETRY - rays / coverage"});
+            if(displayTab==0) {DrawImagePanels();return;}
+            GUI.Label(new Rect(390,126,1000,28),cycleView?"FOUR-PHASE EXCLUSIVE COVERAGE":"LCD SUBPIXEL VISIBILITY  /  PHASE "+phase,heading);
+            GUI.DrawTexture(new Rect(390,157,1024,402),mapTexture,ScaleMode.ScaleToFit,false);
             GUI.Label(new Rect(390,565,1020,42),cycleView?
                 "GREEN: left only has a slot    BLUE: right only has a slot    WHITE: both have separate slots    DARK: neither\nA slot must be exclusive; overlap is not counted as correct stereo delivery.":
                 "GREEN: left eye only    BLUE: right eye only    PINK: both eyes (conflict)    DARK: neither eye\nPreview samples RGB centres. Use detail view: the full-panel preview can alias.",small);
@@ -240,12 +247,14 @@ namespace ParallaxSimulation
                 Directory.CreateDirectory(OutputDirectory);
                 string prefix=Path.Combine(OutputDirectory,DateTime.Now.ToString("yyyyMMdd-HHmmss"));
                 var s=Current(); DrawPreviews();
+                RenderImages(s);
                 File.WriteAllText(prefix+"-preview-settings.json",JsonUtility.ToJson(s,true));
                 File.WriteAllText(prefix+"-preview.txt","phase="+phase+"\ncycleView="+cycleView+"\nregionCentreMm="+mapX+","+mapY+"\nregionWidthMm="+zoomWidth+"\n");
                 var old=RenderTexture.active;RenderTexture.active=mapTexture;
                 var tex=new Texture2D(mapTexture.width,mapTexture.height,TextureFormat.RGB24,false);
                 tex.ReadPixels(new Rect(0,0,tex.width,tex.height),0,0);tex.Apply();RenderTexture.active=old;
                 File.WriteAllBytes(prefix+"-preview.png",tex.EncodeToPNG());Destroy(tex);
+                ExportEyeViews(prefix);
                 if(report!=null) { report.WriteCsv(prefix+"-scan.csv",reportSettings);File.WriteAllText(prefix+"-scan-settings.json",JsonUtility.ToJson(reportSettings,true)); }
                 status="Exported: "+OutputDirectory;
             }
@@ -257,6 +266,7 @@ namespace ParallaxSimulation
             if(mapTexture!=null) {mapTexture.Release();Destroy(mapTexture);} if(diagramTexture!=null) {diagramTexture.Release();Destroy(diagramTexture);}
             if(lines!=null) foreach(var l in lines) if(l!=null) Destroy(l.sharedMaterial);
             Destroy(visibility);Destroy(lineMaterial);
+            DestroyImages();
         }
     }
 }

@@ -51,6 +51,8 @@ public static class SimulationSetup
         Checks();
         var shader=Resources.Load<Shader>("Visibility");
         if(shader==null || ShaderUtil.ShaderHasError(shader)) throw new Exception("Visibility shader failed");
+        shader=Resources.Load<Shader>("EyePreview");
+        if(shader==null || ShaderUtil.ShaderHasError(shader)) throw new Exception("Eye preview shader failed");
         Directory.CreateDirectory("Builds/Windows");
         var result=BuildPipeline.BuildPlayer(new BuildPlayerOptions {
             scenes=new[]{ScenePath},locationPathName="Builds/Windows/ParallaxSimulator.exe",
