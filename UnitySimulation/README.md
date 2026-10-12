@@ -16,6 +16,22 @@ ProjectPBの描画やArduinoへの送信は変更しません。実機に出力�
 Python・RealSense・EyeTracker-RS・Arduinoは起動不要です。初期版はスライダーで左右の視点を動かします。
 画面表示は英語ですが、操作の意味は以下にまとめています。
 
+## 元のProjectPB周期補正で試す
+
+初期選択は **ProjectPB: still shader**。realsenseコミット `1246f420f028d3ec20f778497e66f13793cf44bd` の `interleave.frag` のL/R割当を移植しています。
+
+`S=3*x+channel+slantY*y`（左下原点、channel=0,1,2）、`totalShift=MiddleLine-48*haba`、`q=(S-totalShift)/max(haba,1)`、`value=S-q+2*phase+SHIFT` を計算し、正の剰余 `value mod 8 >= 4` をL、それ以外をRに割り当てます。
+
+初期値は元コードと同じ `haba=330, MiddleLine=3420, SHIFT=1, slantY=1`。habaは累積補正の間隔を決める係数です。静止画の水平周期は `8/(1-1/haba)` サブピクセル（現在の画素寸法で約0.73556 mm）。光源周期0.76928 mmに自動調整してはいません。
+
+**ProjectPB: SBS integer shader** は元の動画用シェーダーのようにqをゼロ方向へ整数化します。入力はどちらも左右別画像です。元の色・ガンマ・漏れ補正は移植せず、L/R割当を比較します。
+
+**Calibrate depth here** を押し、**Depth correction** をONにすると `haba=設定値+int((Zref-Z)/2)`（mm）で補正します。カメラ固有の横追跡は移植せず、MiddleLineとSHIFTで手動調整します。hは割当視点の固定操作です。
+
+**Average all 4 phases** をOFFにしてNext phaseで比較してください。従来方式は **Geometric allocation** で選択できます。Black/Mixは幾何割当だけに適用されます。
+
+変更対象は液晶描画です。観察画像とGeometryは従来の暫定光路モデルを使います。光源配置を変えなければGeometryのピンクは変わりません。4位相の書き出しには方式と補正値も保存します。
+
 ## 左右の画像を重ねて、各眼の見え方を試す
 
 ### 4位相の同期

@@ -19,6 +19,14 @@ namespace ParallaxSimulation
         Texture2D ownedLeft,ownedRight;
         string leftPath="",rightPath="";
         int displayTab, imagePattern, conflictPolicy;
+        // 0 geometric, 1 original still-image shader, 2 original SBS integer correction.
+        int allocationMode=1;
+        float legacyHaba=330,legacyMiddle=3420,legacyShift=1,legacySlant=1;
+        bool legacyDepthCorrection;
+        float legacyReferenceZ=600;
+        float EffectiveHaba(OpticalSettings s) {
+            return Mathf.Max(1,legacyHaba+(legacyDepthCorrection?(int)((legacyReferenceZ-s.headZ)/2):0));
+        }
         bool integrateCycle=true;
         float imageGain=4;
         void InitImages()
@@ -59,7 +67,12 @@ namespace ParallaxSimulation
             eyePreview.SetFloat("_HasLeft",leftImage!=null?1:0);eyePreview.SetFloat("_HasRight",rightImage!=null?1:0);
             eyePreview.SetFloat("_Pattern",imagePattern);eyePreview.SetFloat("_Conflict",conflictPolicy);
             eyePreview.SetFloat("_Cycle",integrateCycle?1:0);eyePreview.SetFloat("_Gain",imageGain);
-            string key=JsonUtility.ToJson(targets)+"/"+imagePattern+"/"+conflictPolicy;
+            eyePreview.SetFloat("_AllocationMode",allocationMode);
+            eyePreview.SetFloat("_LegacyHaba",EffectiveHaba(targets));
+            eyePreview.SetFloat("_LegacyMiddle",legacyMiddle);
+            eyePreview.SetFloat("_LegacyShift",legacyShift);
+            eyePreview.SetFloat("_LegacySlant",legacySlant);
+            string key=allocationMode+"/"+EffectiveHaba(targets)+"/"+legacyMiddle+"/"+legacyShift+"/"+legacySlant+"/"+JsonUtility.ToJson(targets)+"/"+imagePattern+"/"+conflictPolicy;
             // Compare texture references directly; no version-specific object ID API.
             if(key!=driveCacheKey || cachedLeftImage!=leftImage || cachedRightImage!=rightImage) {
                 // Unbind old SRVs before writing these same buffers. The drive pass
@@ -81,6 +94,23 @@ namespace ParallaxSimulation
         void ImageControls()
         {
             GUILayout.Label("IMAGE TEST",heading);
+            allocationMode=GUILayout.SelectionGrid(allocationMode,new[]{"Geometric allocation","ProjectPB: still shader","ProjectPB: SBS integer shader"},1);
+            if(allocationMode!=0) {
+                GUILayout.Label("Correction interval haba: "+EffectiveHaba(Allocation()).ToString("F0"),small);
+                legacyHaba=Mathf.Round(GUILayout.HorizontalSlider(legacyHaba,2,1000));
+                GUILayout.Label("MiddleLine: "+legacyMiddle.ToString("F0"),small);
+                legacyMiddle=Mathf.Round(GUILayout.HorizontalSlider(legacyMiddle,0,6840));
+                GUILayout.Label("Manual phase SHIFT: "+legacyShift.ToString("F0"),small);
+                legacyShift=Mathf.Round(GUILayout.HorizontalSlider(legacyShift,0,7));
+                GUILayout.Label("Slant Y: "+legacySlant.ToString("F2"),small);
+                legacySlant=GUILayout.HorizontalSlider(legacySlant,.1f,2);
+                if(GUILayout.Button("Calibrate depth here")) legacyReferenceZ=(float)Allocation().headZ;
+                legacyDepthCorrection=GUILayout.Toggle(legacyDepthCorrection,"Depth correction: haba + (Zref-Z)/2");
+                if(GUILayout.Button("Reset ProjectPB parameters")) {
+                    legacyHaba=330;legacyMiddle=3420;legacyShift=1;legacySlant=1;legacyDepthCorrection=false;
+                }
+                GUILayout.Label("Original LCD allocation; received views still use the provisional optical model. Lateral calibration is manual (MiddleLine / SHIFT).",small);
+            }
             GUILayout.Label("Input pair / diagnostic pattern",small);
             imagePattern=GUILayout.SelectionGrid(imagePattern,new[]{"Images / L-R targets","Left white / Right black","Left black / Right white","Both white"},1);
             GUILayout.Label("PNG / JPG paths (or Inspector texture slots)",small);
@@ -94,7 +124,9 @@ namespace ParallaxSimulation
 #endif
             if(GUILayout.Button("Use built-in L / R targets")) {leftImage=rightImage=null;imagePattern=0;}
             GUILayout.Label("When both eyes see the same subpixel",small);
+            GUI.enabled=allocationMode==0;
             conflictPolicy=GUILayout.SelectionGrid(conflictPolicy,new[]{"Black (avoid mixing)","Mix L + R (show crosstalk)","Left priority (diagnostic)"},1);
+            GUI.enabled=true;
             integrateCycle=GUILayout.Toggle(integrateCycle,"Average all 4 phases (static eyes / images)");
             if(GUILayout.Button("Export synchronized phases 0-3")) ExportPhaseSequence();
             GUILayout.Label("Received-image brightness gain: "+imageGain.ToString("F1"),small);
@@ -153,7 +185,7 @@ namespace ParallaxSimulation
             PreviewTile(new Rect(390,790,276,155.25f),imageViews[2],"LCD DRIVE - PHASE "+imagePhase);
             GUILayout.BeginArea(new Rect(690,785,722,165),GUI.skin.box);
             GUILayout.Label("SYNCHRONIZED: light "+imagePhase+" = LCD "+imagePhase+"   |   Gain x"+imageGainPresented.ToString("F1"),heading);
-            GUILayout.Label(tracking?"Allocation follows eyes":"Allocation frozen: move eyes to test loss of alignment",small);
+            GUILayout.Label(allocationMode==0?(tracking?"Allocation follows eyes":"Allocation frozen: move eyes to test loss of alignment"):"ProjectPB periodic allocation / manual lateral calibration",small);
             GUILayout.Label("Received images are shown in LCD coordinates (front-rectified), not perspective camera images. All RGB centres are computed at the native LCD resolution. On-screen thumbnails are reduced; exported PNGs preserve full resolution.\nOverlap is one shared LCD value: black / mixed / left priority. Dark areas are not filled in. This is a geometric simulation, not a measured optical image.",small);
             GUILayout.Label(status,small);
             GUILayout.EndArea();
@@ -169,7 +201,7 @@ namespace ParallaxSimulation
             string[] names={"received-left","received-right","lcd-phase-"+imagePhase,"input-left","input-right"};
             for(int i=0;i<5;i++)SaveRenderTexture(imageViews[i],prefix+"-"+names[i]+".png");
             File.WriteAllText(prefix+"-allocation-settings.json",JsonUtility.ToJson(Allocation(),true));
-            File.WriteAllText(prefix+"-image-test.txt","pattern="+imagePattern+"\nconflictPolicy="+conflictPolicy+" (0 black, 1 mix, 2 left priority)\ncycleMean="+integrateCycle+"\nfixedGain="+imageGain+"\ntracking="+tracking+"\nphase="+phase+"\nInputs are saved as PNG; received views use LCD coordinates, not perspective projection.\n");
+            File.WriteAllText(prefix+"-image-test.txt","allocationMode="+allocationMode+" (0 geometry, 1 ProjectPB still, 2 ProjectPB SBS)\nhaba="+EffectiveHaba(Allocation())+"\nMiddleLine="+legacyMiddle+"\nSHIFT="+legacyShift+"\nslantY="+legacySlant+"\npattern="+imagePattern+"\nconflictPolicy="+conflictPolicy+" (0 black, 1 mix, 2 left priority)\ncycleMean="+integrateCycle+"\nfixedGain="+imageGain+"\ntracking="+tracking+"\nphase="+phase+"\nInputs are saved as PNG; received views use LCD coordinates, not perspective projection.\n");
         }
         void ExportPhaseSequence()
         {
@@ -198,4 +230,3 @@ namespace ParallaxSimulation
         }
     }
 }
-

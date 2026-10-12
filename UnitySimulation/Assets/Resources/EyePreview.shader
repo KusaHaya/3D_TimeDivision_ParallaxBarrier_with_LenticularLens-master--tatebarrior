@@ -19,6 +19,7 @@ Shader "Parallax/EyePreview"
             sampler2D _Drive0, _Drive1, _Drive2, _Drive3;
             float4 _TargetL, _TargetR;
             // 0/1=received eyes, 2=linear LCD drive, 3/4=inputs, 5=display LCD drive.
+            float _AllocationMode, _LegacyHaba, _LegacyMiddle, _LegacyShift, _LegacySlant;
             float _Output, _Pattern, _HasLeft, _HasRight, _Conflict, _Cycle, _Gain;
             float3 inputColor(float2 uv,bool right) {
                 if(_Pattern>0.5 && _Pattern<1.5) return right?0:1;
@@ -49,6 +50,14 @@ Shader "Parallax/EyePreview"
                 if(_Conflict<1.5) return .5*(l+r);
                 return l;
             }
+            bool legacyLeft(float2 pixel,int channel,int phase) {
+                // GLSL gl_FragCoord: bottom-left origin, integer RGB indices.
+                float S=pixel.x*3+channel+_LegacySlant*pixel.y;
+                float q=(S-(_LegacyMiddle-48*_LegacyHaba))/max(_LegacyHaba,1.0);
+                float correction=_AllocationMode>1.5?(q>=0?floor(q):ceil(q)):q;
+                float value=S-correction+2*phase+_LegacyShift;
+                return value-8*floor(value/8)>=4;
+            }
             float3 storedDrive(float2 uv,int k) {
                 float3 value=tex2D(_Drive0,uv).rgb;
                 if(k==1) value=tex2D(_Drive1,uv).rgb;
@@ -68,7 +77,9 @@ Shader "Parallax/EyePreview"
                     float2 p=(subuv-.5)*_Panel.xy;
                     float a=sourceCoord(p,_TargetL.xyz), b=sourceCoord(p,_TargetR.xyz);
                     if(_Output>1.5) {
-                        result[channel]=drive(classify(a,b,(int)_Phase),l[channel],r[channel]);
+                        if(_AllocationMode>.5)
+                            result[channel]=legacyLeft(pixel,channel,(int)_Phase)?l[channel]:r[channel];
+                        else result[channel]=drive(classify(a,b,(int)_Phase),l[channel],r[channel]);
                     } else {
                     float seen=sourceCoord(p,_Output<.5?_EyeL.xyz:_EyeR.xyz);
                     float sum=0;
