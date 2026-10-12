@@ -1,0 +1,11 @@
+/Library/
+/Temp/
+/Obj/
+/Logs/
+/UserSettings/
+/Builds/
+/*.csproj
+/*.sln
+.vs/
+/Validation/bin/
+/Validation/obj/
