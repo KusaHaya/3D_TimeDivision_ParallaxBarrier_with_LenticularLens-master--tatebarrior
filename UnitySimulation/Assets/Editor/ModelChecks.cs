@@ -41,6 +41,29 @@ public static class ModelChecks
         Near(OpticalModel.Drive(0,1,1,1),0,"No-ray drive");
         Near(OpticalModel.Received(.043,.078,s,s.Eye(false),s.Eye(true),s.Eye(false),.2,.8,0,0,true),.2/4,"Ideal left image delivery");
         Near(OpticalModel.Received(.043,.078,s,s.Eye(false),s.Eye(true),s.Eye(true),.2,.8,0,0,true),.8/4,"Ideal right image delivery");
+        // Store four physical drive values, then receive through an independently
+        // selected light phase. White-left/black-right reveals a two-phase error.
+        int leakedSamples=0;
+        for(int sample=0;sample<100;sample++) {
+            double x=sample*.0137;
+            double a=OpticalModel.SourceCoordinate(x,0,s.Eye(false),s);
+            double b=OpticalModel.SourceCoordinate(x,0,s.Eye(true),s);
+            var buffers=new double[4];
+            for(int k=0;k<4;k++) buffers[k]=OpticalModel.Drive(
+                (OpticalModel.Visible(a,k,s)?1:0)+(OpticalModel.Visible(b,k,s)?2:0),1,0,0);
+            double total=0;
+            for(int k=0;k<4;k++) {
+                bool rightVisible=OpticalModel.Visible(b,k,s);
+                Near(rightVisible?buffers[k]:0,0,"Synchronized right eye stays black");
+                if(rightVisible && buffers[(k+2)%4]>0) leakedSamples++;
+                total+=OpticalModel.Visible(a,k,s)?buffers[k]:0;
+            }
+            Near(total,1,"One complete left contribution per cycle");
+            for(int start=0;start<4;start++) Near(
+                OpticalModel.Received(x,0,s,s.Eye(false),s.Eye(true),s.Eye(false),1,0,0,start,true),
+                total/4,"Cycle mean independent of starting phase");
+        }
+        Check(leakedSamples>0,"Phase mismatch must be detected by diagnostic");
         var actual=new OpticalSettings();
         Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(false),1,0,1,0,true),.125,"Overlap left received mean");
         Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(true),1,0,1,0,true),.125,"Overlap leaks into black right input");

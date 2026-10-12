@@ -27,6 +27,8 @@ namespace ParallaxSimulation
         string capturePath;
         bool captureQueued;
         float nextFrame, phaseClock;
+        int presentedPhase=-1;
+        long presentationId;
         OpticalSettings activeSettings;
         GUIStyle title, small, heading;
         string OutputDirectory { get { return Path.Combine(Application.persistentDataPath,"Results"); } }
@@ -64,8 +66,6 @@ namespace ParallaxSimulation
         }
         void Update()
         {
-            // h freezes allocation targets only; actual simulated eyes can still move.
-            if(Input.GetKeyDown(KeyCode.H)) ToggleTracking();
             if(animate) { phaseClock+=Time.unscaledDeltaTime; if(phaseClock>=.5f) { phase=(phase+1)%4;phaseClock=0; } }
             if(analysis!=null && analysis.IsCompleted)
             {
@@ -74,7 +74,9 @@ namespace ParallaxSimulation
                 else { report=analysis.Result; reportSettings=jobSettings;reportJson=JsonUtility.ToJson(reportSettings); status="Scan complete. Results are for a static eye pose, RGB centres only."; }
                 analysis=null; cancellation.Dispose(); cancellation=null;
             }
-            if(Time.unscaledTime>=nextFrame) { nextFrame=Time.unscaledTime+.1f; DrawPreviews(); }
+            // A phase change always renders a complete matching set immediately.
+            // Never update the light phase while keeping an old LCD/eye preview.
+            if(phase!=presentedPhase || Time.unscaledTime>=nextFrame) { nextFrame=Time.unscaledTime+.1f; DrawPreviews(); }
             if(capturePath!=null && !captureQueued && report!=null)
             { captureQueued=true; StartCoroutine(CaptureAndQuit()); }
         }
@@ -97,9 +99,10 @@ namespace ParallaxSimulation
             Application.Quit(0);
         }
         static Vector4 EyeVector(Point3 p) { return new Vector4((float)p.x,(float)p.y,(float)p.z,0); }
-        void DrawPreviews()
+        void DrawPreviews(bool forceImages=false)
         {
             var s=Current();
+            int framePhase=((phase%4)+4)%4;
             try { s.Validate(); } catch(Exception e) { status=e.Message; return; }
             visibility.SetVector("_EyeL",EyeVector(s.Eye(false)));visibility.SetVector("_EyeR",EyeVector(s.Eye(true)));
             visibility.SetVector("_Region",new Vector4(mapX,mapY,zoomWidth,zoomWidth*432/1024));
@@ -107,17 +110,19 @@ namespace ParallaxSimulation
             visibility.SetFloat("_Gap",(float)s.Gap);visibility.SetFloat("_Period",(float)s.sourcePeriod);
             visibility.SetFloat("_Width",(float)s.sourceWidth);visibility.SetFloat("_Step",(float)s.rawPhaseStep);
             visibility.SetFloat("_Offset",(float)s.sourceOffset);visibility.SetFloat("_Slope",(float)s.slope);
-            visibility.SetFloat("_Direction",s.phaseDirection);visibility.SetFloat("_Phase",phase);visibility.SetFloat("_Mode",cycleView?1:0);
+            visibility.SetFloat("_Direction",s.phaseDirection);visibility.SetFloat("_Phase",framePhase);visibility.SetFloat("_Mode",cycleView?1:0);
             Graphics.Blit(Texture2D.whiteTexture,mapTexture,visibility);
-            DrawDiagram(s);
-            if(displayTab==0) RenderImages(s);
+            DrawDiagram(s,framePhase);
+            if(displayTab==0 || forceImages) RenderImages(s,framePhase);
+            presentedPhase=framePhase;
+            presentationId++;
         }
         Vector3 V(Point3 p) { return new Vector3((float)p.x,(float)p.y,(float)p.z); }
         void Line(int index,Color color,params Vector3[] points)
         { var l=lines[index];l.enabled=true;l.positionCount=points.Length;l.SetPositions(points);l.sharedMaterial.SetColor("_Color",color); }
         void Rectangle(int index,float w,float h,float z,Color c)
         { Line(index,c,new Vector3(-w/2,-h/2,z),new Vector3(w/2,-h/2,z),new Vector3(w/2,h/2,z),new Vector3(-w/2,h/2,z),new Vector3(-w/2,-h/2,z)); }
-        void DrawDiagram(OpticalSettings s)
+        void DrawDiagram(OpticalSettings s,int framePhase)
         {
             foreach(var l in lines) l.enabled=false;
             float sourceZ=spreadLayers?-40:-(float)s.Gap;
@@ -128,7 +133,7 @@ namespace ParallaxSimulation
             int index=3;
             for(int n=-3;n<=3;n++)
             {
-                double source=s.Phase(phase)+n*80*s.sourcePeriod, h=s.panelHeight*.4;
+                double source=s.Phase(framePhase)+n*80*s.sourcePeriod, h=s.panelHeight*.4;
                 Line(index++,new Color(1,.65f,.15f),new Vector3((float)(source+s.slope*h),(float)-h,sourceZ),new Vector3((float)(source-s.slope*h),(float)h,sourceZ));
             }
             for(int e=0;e<2;e++)
@@ -139,7 +144,7 @@ namespace ParallaxSimulation
                 Line(index++,c,v+Vector3.down*7,v+Vector3.up*7);
                 for(int n=-1;n<=1;n++)
                 {
-                    Point3 source=new Point3(s.Phase(phase)+n*100*s.sourcePeriod,0,-s.Gap);
+                    Point3 source=new Point3(s.Phase(framePhase)+n*100*s.sourcePeriod,0,-s.Gap);
                     Point3 panel=OpticalModel.Project(source,eye,s.Gap);
                     Line(index++,c,new Vector3((float)source.x,0,sourceZ),V(panel),v);
                 }
@@ -159,6 +164,10 @@ namespace ParallaxSimulation
         }
         void OnGUI()
         {
+            // IMGUI key event also works when Unity 6 uses the new Input System only.
+            // Do not toggle while a path text field is being edited.
+            if(Event.current.type==EventType.KeyDown && Event.current.keyCode==KeyCode.H && GUIUtility.keyboardControl==0)
+            { ToggleTracking();Event.current.Use(); }
             if(title==null)
             { title=new GUIStyle(GUI.skin.label){fontSize=24,fontStyle=FontStyle.Bold};heading=new GUIStyle(GUI.skin.label){fontSize=16,fontStyle=FontStyle.Bold};small=new GUIStyle(GUI.skin.label){fontSize=12,wordWrap=true}; }
             float scale=Mathf.Min(Screen.width/1440f,Screen.height/960f);
@@ -187,6 +196,8 @@ namespace ParallaxSimulation
             GUILayout.Label("3  PHASE / PREVIEW",heading);
             phase=GUILayout.Toolbar(phase,new[]{"0","1","2","3"});
             animate=GUILayout.Toggle(animate,"Animate phases slowly (2 phases/sec)");
+            if(GUILayout.Button("Next phase - light + LCD together")) {animate=false;phase=(phase+1)%4;}
+            GUILayout.Label("Presented: light="+presentedPhase+" / LCD="+presentedPhase+"  (#"+presentationId+")",small);
             cycleView=GUILayout.Toggle(cycleView,"Show exclusive coverage over all 4 phases");
             GUILayout.Label("Preview width: "+zoomWidth.ToString("F1")+" mm");zoomWidth=GUILayout.HorizontalSlider(zoomWidth,4,528);
             GUILayout.BeginHorizontal();if(GUILayout.Button("Detail 24mm")) zoomWidth=24;if(GUILayout.Button("Full LCD")) zoomWidth=528;GUILayout.EndHorizontal();
@@ -206,7 +217,7 @@ namespace ParallaxSimulation
             GUILayout.EndScrollView();GUILayout.EndArea();
             displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST - left / right eyes","GEOMETRY - rays / coverage"});
             if(displayTab==0) {DrawImagePanels();return;}
-            GUI.Label(new Rect(390,126,1000,28),cycleView?"FOUR-PHASE EXCLUSIVE COVERAGE":"LCD SUBPIXEL VISIBILITY  /  PHASE "+phase,heading);
+            GUI.Label(new Rect(390,126,1000,28),cycleView?"FOUR-PHASE EXCLUSIVE COVERAGE":"LCD SUBPIXEL VISIBILITY  /  PHASE "+presentedPhase,heading);
             GUI.DrawTexture(new Rect(390,157,1024,402),mapTexture,ScaleMode.ScaleToFit,false);
             GUI.Label(new Rect(390,565,1020,42),cycleView?
                 "GREEN: left only has a slot    BLUE: right only has a slot    WHITE: both have separate slots    DARK: neither\nA slot must be exclusive; overlap is not counted as correct stereo delivery.":
@@ -246,8 +257,7 @@ namespace ParallaxSimulation
             {
                 Directory.CreateDirectory(OutputDirectory);
                 string prefix=Path.Combine(OutputDirectory,DateTime.Now.ToString("yyyyMMdd-HHmmss"));
-                var s=Current(); DrawPreviews();
-                RenderImages(s);
+                var s=Current(); DrawPreviews(true);
                 File.WriteAllText(prefix+"-preview-settings.json",JsonUtility.ToJson(s,true));
                 File.WriteAllText(prefix+"-preview.txt","phase="+phase+"\ncycleView="+cycleView+"\nregionCentreMm="+mapX+","+mapY+"\nregionWidthMm="+zoomWidth+"\n");
                 var old=RenderTexture.active;RenderTexture.active=mapTexture;

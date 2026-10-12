@@ -14,8 +14,11 @@ Shader "Parallax/EyePreview"
             #include "UnityCG.cginc"
             #include "OpticalRays.cginc"
             sampler2D _LeftImage, _RightImage;
+            // Each texture is a single physical LCD drive shared by BOTH eyes.
+            // Stored in linear light, one texture for each illumination phase.
+            sampler2D _Drive0, _Drive1, _Drive2, _Drive3;
             float4 _TargetL, _TargetR;
-            // Output: 0=left received,1=right received,2=LCD phase,3=left input,4=right input.
+            // 0/1=received eyes, 2=linear LCD drive, 3/4=inputs, 5=display LCD drive.
             float _Output, _Pattern, _HasLeft, _HasRight, _Conflict, _Cycle, _Gain;
             float3 inputColor(float2 uv,bool right) {
                 if(_Pattern>0.5 && _Pattern<1.5) return right?0:1;
@@ -46,29 +49,42 @@ Shader "Parallax/EyePreview"
                 if(_Conflict<1.5) return .5*(l+r);
                 return l;
             }
+            float3 storedDrive(float2 uv,int k) {
+                float3 value=tex2D(_Drive0,uv).rgb;
+                if(k==1) value=tex2D(_Drive1,uv).rgb;
+                if(k==2) value=tex2D(_Drive2,uv).rgb;
+                if(k==3) value=tex2D(_Drive3,uv).rgb;
+                return value;
+            }
             float4 frag(v2f_img i):SV_Target {
                 float2 pixel=min(floor(i.uv*_Panel.zw),_Panel.zw-1);
                 float2 uv=(pixel+.5)/_Panel.zw;
                 float3 l=inputColor(uv,false),r=inputColor(uv,true);
+                if(_Output>4.5) return float4(LinearToGammaSpace(storedDrive(uv,(int)_Phase)),1);
                 if(_Output>2.5) return float4(LinearToGammaSpace(_Output<3.5?l:r),1);
                 float3 result=0;
                 [unroll] for(int channel=0;channel<3;channel++) {
                     float2 subuv=(pixel+float2((channel+.5)/3.0,.5))/_Panel.zw;
                     float2 p=(subuv-.5)*_Panel.xy;
                     float a=sourceCoord(p,_TargetL.xyz), b=sourceCoord(p,_TargetR.xyz);
+                    if(_Output>1.5) {
+                        result[channel]=drive(classify(a,b,(int)_Phase),l[channel],r[channel]);
+                    } else {
                     float seen=sourceCoord(p,_Output<.5?_EyeL.xyz:_EyeR.xyz);
                     float sum=0;
                     [unroll] for(int k=0;k<4;k++) {
-                        bool include=(_Output>1.5 || _Cycle<.5)?k==(int)_Phase:true;
+                        bool include=_Cycle<.5?k==(int)_Phase:true;
                         if(include) {
-                            float d=drive(classify(a,b,k),l[channel],r[channel]);
-                            sum+=(_Output>1.5 || visible(seen,k))?d:0;
+                            float3 stored=storedDrive(uv,k);
+                            float d=stored[channel];
+                            sum+=visible(seen,k)?d:0;
                         }
                     }
-                    float gain=_Output>1.5?1:_Gain;
-                    float divisor=(_Output<1.5 && _Cycle>.5)?4:1;
-                    result[channel]=sum*gain/divisor;
+                    float divisor=_Cycle>.5?4:1;
+                    result[channel]=sum*_Gain/divisor;
+                    }
                 }
+                if(_Output>1.5) return float4(result,1); // linear-light drive buffer
                 return float4(LinearToGammaSpace(saturate(result)),1);
             }
             ENDCG

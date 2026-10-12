@@ -10,6 +10,11 @@ namespace ParallaxSimulation
         public Texture2D leftImage, rightImage;
         Material eyePreview;
         RenderTexture[] imageViews;
+        RenderTexture[] phaseDrives;
+        string driveCacheKey="";
+        int imagePhase=-1;
+        bool imageCyclePresented;
+        float imageGainPresented;
         Texture2D ownedLeft,ownedRight;
         string leftPath="",rightPath="";
         int displayTab, imagePattern, conflictPolicy;
@@ -19,6 +24,7 @@ namespace ParallaxSimulation
         {
             eyePreview=new Material(Resources.Load<Shader>("EyePreview"));
             imageViews=new RenderTexture[5];
+            phaseDrives=new RenderTexture[4];
         }
         void EnsureImageTargets(OpticalSettings s)
         {
@@ -29,8 +35,14 @@ namespace ParallaxSimulation
                 imageViews[i]=new RenderTexture(s.pixelsX,s.pixelsY,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
                 imageViews[i].filterMode=FilterMode.Point;imageViews[i].Create();
             }
+            for(int i=0;i<4;i++) {
+                if(phaseDrives[i]!=null && phaseDrives[i].width==s.pixelsX && phaseDrives[i].height==s.pixelsY) continue;
+                if(phaseDrives[i]!=null) {phaseDrives[i].Release();Destroy(phaseDrives[i]);}
+                phaseDrives[i]=new RenderTexture(s.pixelsX,s.pixelsY,0,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear);
+                phaseDrives[i].filterMode=FilterMode.Point;phaseDrives[i].Create();driveCacheKey="";
+            }
         }
-        void RenderImages(OpticalSettings s)
+        void RenderImages(OpticalSettings s,int framePhase)
         {
             s.Validate();EnsureImageTargets(s);
             var targets=Allocation();
@@ -40,13 +52,29 @@ namespace ParallaxSimulation
             eyePreview.SetFloat("_Gap",(float)s.Gap);eyePreview.SetFloat("_Period",(float)s.sourcePeriod);
             eyePreview.SetFloat("_Width",(float)s.sourceWidth);eyePreview.SetFloat("_Step",(float)s.rawPhaseStep);
             eyePreview.SetFloat("_Offset",(float)s.sourceOffset);eyePreview.SetFloat("_Slope",(float)s.slope);
-            eyePreview.SetFloat("_Direction",s.phaseDirection);eyePreview.SetFloat("_Phase",phase);
+            eyePreview.SetFloat("_Direction",s.phaseDirection);
             eyePreview.SetTexture("_LeftImage",leftImage!=null?leftImage:Texture2D.whiteTexture);
             eyePreview.SetTexture("_RightImage",rightImage!=null?rightImage:Texture2D.whiteTexture);
             eyePreview.SetFloat("_HasLeft",leftImage!=null?1:0);eyePreview.SetFloat("_HasRight",rightImage!=null?1:0);
             eyePreview.SetFloat("_Pattern",imagePattern);eyePreview.SetFloat("_Conflict",conflictPolicy);
             eyePreview.SetFloat("_Cycle",integrateCycle?1:0);eyePreview.SetFloat("_Gain",imageGain);
-            for(int i=0;i<5;i++) {eyePreview.SetFloat("_Output",i);Graphics.Blit(Texture2D.whiteTexture,imageViews[i],eyePreview);}
+            string key=JsonUtility.ToJson(targets)+"/"+imagePattern+"/"+conflictPolicy+"/"
+                +(leftImage!=null?leftImage.GetInstanceID():0)+"/"+(rightImage!=null?rightImage.GetInstanceID():0);
+            if(key!=driveCacheKey) {
+                // Unbind old SRVs before writing these same buffers. The drive pass
+                // does not sample them, but D3D resource hazards must still be avoided.
+                for(int k=0;k<4;k++) eyePreview.SetTexture("_Drive"+k,Texture2D.blackTexture);
+                eyePreview.SetFloat("_Output",2);
+                for(int k=0;k<4;k++) {
+                    eyePreview.SetFloat("_Phase",k);
+                    Graphics.Blit(Texture2D.whiteTexture,phaseDrives[k],eyePreview);
+                }
+                driveCacheKey=key;
+            }
+            for(int k=0;k<4;k++) eyePreview.SetTexture("_Drive"+k,phaseDrives[k]);
+            eyePreview.SetFloat("_Phase",framePhase);
+            for(int i=0;i<5;i++) {eyePreview.SetFloat("_Output",i==2?5:i);Graphics.Blit(Texture2D.whiteTexture,imageViews[i],eyePreview);}
+            imagePhase=framePhase;imageCyclePresented=integrateCycle;imageGainPresented=imageGain;
         }
         void ImageControls()
         {
@@ -66,6 +94,7 @@ namespace ParallaxSimulation
             GUILayout.Label("When both eyes see the same subpixel",small);
             conflictPolicy=GUILayout.SelectionGrid(conflictPolicy,new[]{"Black (avoid mixing)","Mix L + R (show crosstalk)","Left priority (diagnostic)"},1);
             integrateCycle=GUILayout.Toggle(integrateCycle,"Average all 4 phases (static eyes / images)");
+            if(GUILayout.Button("Export synchronized phases 0-3")) ExportPhaseSequence();
             GUILayout.Label("Received-image brightness gain: "+imageGain.ToString("F1"),small);
             imageGain=GUILayout.HorizontalSlider(imageGain,1,8);
             GUILayout.Label("Fixed gain; no automatic correction of dark/missing areas.",small);
@@ -116,11 +145,13 @@ namespace ParallaxSimulation
         {
             PreviewTile(new Rect(390,157,500,281.25f),imageViews[3],"INPUT - LEFT");
             PreviewTile(new Rect(914,157,500,281.25f),imageViews[4],"INPUT - RIGHT");
-            PreviewTile(new Rect(390,475,500,281.25f),imageViews[0],"RECEIVED - LEFT EYE");
-            PreviewTile(new Rect(914,475,500,281.25f),imageViews[1],"RECEIVED - RIGHT EYE");
-            PreviewTile(new Rect(390,790,276,155.25f),imageViews[2],"LCD DRIVE - PHASE "+phase);
+            string sample=imageCyclePresented?" / 4-PHASE MEAN":" / PHASE "+imagePhase;
+            PreviewTile(new Rect(390,475,500,281.25f),imageViews[0],"RECEIVED - LEFT"+sample);
+            PreviewTile(new Rect(914,475,500,281.25f),imageViews[1],"RECEIVED - RIGHT"+sample);
+            PreviewTile(new Rect(390,790,276,155.25f),imageViews[2],"LCD DRIVE - PHASE "+imagePhase);
             GUILayout.BeginArea(new Rect(690,785,722,165),GUI.skin.box);
-            GUILayout.Label((integrateCycle?"4-phase mean":"Single phase "+phase)+"   |   Gain x"+imageGain.ToString("F1")+"   |   "+(tracking?"Allocation follows eyes":"Allocation frozen: move eyes to test loss of alignment"),heading);
+            GUILayout.Label("SYNCHRONIZED: light "+imagePhase+" = LCD "+imagePhase+"   |   Gain x"+imageGainPresented.ToString("F1"),heading);
+            GUILayout.Label(tracking?"Allocation follows eyes":"Allocation frozen: move eyes to test loss of alignment",small);
             GUILayout.Label("Received images are shown in LCD coordinates (front-rectified), not perspective camera images. All RGB centres are computed at the native LCD resolution. On-screen thumbnails are reduced; exported PNGs preserve full resolution.\nOverlap is one shared LCD value: black / mixed / left priority. Dark areas are not filled in. This is a geometric simulation, not a measured optical image.",small);
             GUILayout.Label(status,small);
             GUILayout.EndArea();
@@ -133,15 +164,35 @@ namespace ParallaxSimulation
         }
         void ExportEyeViews(string prefix)
         {
-            string[] names={"received-left","received-right","lcd-phase-"+phase,"input-left","input-right"};
+            string[] names={"received-left","received-right","lcd-phase-"+imagePhase,"input-left","input-right"};
             for(int i=0;i<5;i++)SaveRenderTexture(imageViews[i],prefix+"-"+names[i]+".png");
             File.WriteAllText(prefix+"-allocation-settings.json",JsonUtility.ToJson(Allocation(),true));
             File.WriteAllText(prefix+"-image-test.txt","pattern="+imagePattern+"\nconflictPolicy="+conflictPolicy+" (0 black, 1 mix, 2 left priority)\ncycleMean="+integrateCycle+"\nfixedGain="+imageGain+"\ntracking="+tracking+"\nphase="+phase+"\nInputs are saved as PNG; received views use LCD coordinates, not perspective projection.\n");
+        }
+        void ExportPhaseSequence()
+        {
+            int savedPhase=phase;bool savedCycle=integrateCycle;
+            try {
+                Current().Validate();
+                Directory.CreateDirectory(OutputDirectory);
+                string prefix=Path.Combine(OutputDirectory,DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-sequence");
+                // No time/pose advancement: compare all four phases at one fixed pose.
+                integrateCycle=false;
+                for(int k=0;k<4;k++) {phase=k;DrawPreviews(true);ExportEyeViews(prefix+"-phase"+k);}
+                integrateCycle=true;phase=0;DrawPreviews(true);ExportEyeViews(prefix+"-mean");
+                File.WriteAllText(prefix+"-observer-settings.json",JsonUtility.ToJson(Current(),true));
+                status="Exported synchronized phase sequence: "+OutputDirectory;
+            } catch(Exception e) {status="Sequence export failed: "+e.Message;}
+            finally {
+                phase=savedPhase;integrateCycle=savedCycle;
+                try {DrawPreviews(true);} catch(Exception e) {status="Preview restore failed: "+e.Message;}
+            }
         }
         void DestroyImages()
         {
             Destroy(eyePreview);Destroy(ownedLeft);Destroy(ownedRight);
             if(imageViews!=null)foreach(var rt in imageViews)if(rt!=null){rt.Release();Destroy(rt);}
+            if(phaseDrives!=null)foreach(var rt in phaseDrives)if(rt!=null){rt.Release();Destroy(rt);}
         }
     }
 }
