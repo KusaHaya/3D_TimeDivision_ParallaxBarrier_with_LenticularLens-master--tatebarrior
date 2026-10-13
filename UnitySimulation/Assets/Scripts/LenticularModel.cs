@@ -1,25 +1,29 @@
 using System;
 namespace ParallaxSimulation
 {
-    // Paraxial cylindrical thin-lens model, horizontal section through slanted bars.
+    // Paraxial plano-convex cylinder: LED -> plane -> PMMA -> convex vertex, horizontal section through slanted bars.
     [Serializable] public sealed class LenticularSettings
     {
         public double ledWidth=3,ledPitch=22.5,ledDistance=150,screenDistance=6.5;
-        public double physicalPitch=.7,slope=1.0/3,focalLength=6.10;
+        public double physicalPitch=.7,slope=1.0/3;
+        public double radius=.5,refractiveIndex=1.49,thickness=2;
+        // D measured from LED to entrance plane; screen distance from exit vertex.
+        public double EffectiveObjectDistance {get{return ledDistance+thickness/refractiveIndex;}}
+        public double FocalLength {get{return radius/(refractiveIndex-1);}}
         public int phase=0,groupsEachSide=4;
         public double HorizontalPitch {get{return physicalPitch*Math.Sqrt(1+slope*slope);}}
-        public double Magnification {get{return screenDistance/ledDistance;}}
-        public double Defocus {get{return 1+screenDistance/ledDistance-screenDistance/focalLength;}}
-        public double ImageDistance {get{return ledDistance*focalLength/(ledDistance-focalLength);}}
-        public double ImageWidth {get{return ImageDistance/ledDistance*ledWidth;}}
+        public double Magnification {get{return screenDistance/EffectiveObjectDistance;}}
+        public double Defocus {get{return 1+screenDistance/EffectiveObjectDistance-screenDistance/FocalLength;}}
+        public double ImageDistance {get{return 1/(1/FocalLength-1/EffectiveObjectDistance);}}
+        public double ImageWidth {get{return ImageDistance/EffectiveObjectDistance*ledWidth;}}
         public double ScreenWidth {get{return Magnification*ledWidth+Math.Abs(Defocus)*HorizontalPitch;}}
         public double ScreenPeriod {get{return (1+Magnification)*HorizontalPitch;}}
         public double Center(double lensCenter,double ledCenter) {return (1+Magnification)*lensCenter-Magnification*ledCenter;}
         public double Ray(double lensCenter,double apertureOffset,double ledPosition,double z)
-        {return lensCenter+apertureOffset+z*((lensCenter+apertureOffset-ledPosition)/ledDistance-apertureOffset/focalLength);}
+        {return lensCenter+apertureOffset+z*((lensCenter+apertureOffset-ledPosition)/EffectiveObjectDistance-apertureOffset/FocalLength);}
         public void Validate() {
-            if(ledDistance<=focalLength || focalLength<=0 || screenDistance<=0 || ledWidth<=0 || ledPitch<=0 || physicalPitch<=0)
-                throw new ArgumentException("Need LED distance > focal length and positive dimensions.");
+            if(ledDistance<=0 || refractiveIndex<=1 || radius<=0 || thickness<0 || EffectiveObjectDistance<=FocalLength || screenDistance<=0 || ledWidth<=0 || ledPitch<=0 || physicalPitch<=0)
+                throw new ArgumentException("Need a real image, n > 1 and positive dimensions.");
         }
         // Convolution of two uniform intervals. Integral = 1 for each lens/LED pair.
         public static double Density(double x,double a,double b) {

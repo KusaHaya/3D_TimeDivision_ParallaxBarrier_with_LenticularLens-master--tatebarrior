@@ -9,6 +9,9 @@ public static class ModelChecks
     public static void Run()
     {
         var lens=new LenticularSettings();
+        Near(lens.FocalLength,.5/.49,"EFL from PMMA curvature");
+        Near(lens.EffectiveObjectDistance,150+2/1.49,"Flat entrance reduced distance");
+        Near(lens.ImageDistance,1/(.49/.5-1/(150+2/1.49)),"Vertex referenced finite conjugate");
         lens.screenDistance=lens.ImageDistance;
         Near(lens.Defocus,0,"Thin lens focus condition");
         Near(lens.ScreenWidth,lens.ImageWidth,"Footprint at image plane");

@@ -13,29 +13,32 @@ namespace ParallaxSimulation
         double lensViewWidth=8,lensGain=.05;
         string lensKey="",lensMessage="",shownLensSummary="";
         double profileSpan;
-        string exactD="150",exactT="6.5",exactF="6.10";
+        string exactD="150",exactT="6.5";
         void LensControls() {
             GUILayout.Label("LED / LENTICULAR TEST",heading);
             GUILayout.Label("Horizontal widths. 22.5 mm is LED centre pitch (not edge gap).",small);
             Slider("LED width (mm)",ref lensTest.ledWidth,.2f,10);
             Slider("LED centre pitch (mm)",ref lensTest.ledPitch,5,35);
-            Slider("LED -> lens (mm)",ref lensTest.ledDistance,20,500,"F1");
-            Slider("Lens -> display (mm)",ref lensTest.screenDistance,.1f,20);
-            Slider("Lens focal length (mm) - UNVERIFIED",ref lensTest.focalLength,.5f,10);
-            GUILayout.Label("Exact entry: LED distance / display distance / focal length (mm)",small);
-            exactD=GUILayout.TextField(exactD);exactT=GUILayout.TextField(exactT);exactF=GUILayout.TextField(exactF);
+            Slider("LED -> entrance FLAT face (mm)",ref lensTest.ledDistance,20,500,"F1");
+            Slider("CONVEX VERTEX -> display (mm)",ref lensTest.screenDistance,.1f,20);
+            GUILayout.Label("PMMA: flat face toward LED; convex face toward display.",small);
+            Slider("PMMA index (assumed)",ref lensTest.refractiveIndex,1.45f,1.55f);
+            Slider("Flat face -> vertex thickness (mm)",ref lensTest.thickness,1,3);
+            GUILayout.Label("Radius 0.500 mm / physical pitch 0.700 mm / slope 1:3",small);
+            GUILayout.Label("Calculated EFL: "+lensTest.FocalLength.ToString("F4")+" mm (not surface spacing)",small);
+            GUILayout.Label("Exact entry: LED-to-flat / vertex-to-display (mm)",small);
+            exactD=GUILayout.TextField(exactD);exactT=GUILayout.TextField(exactT);
             if(GUILayout.Button("Apply exact distances")) {
-                double d,t,f;
+                double d,t;
                 if(double.TryParse(exactD,NumberStyles.Float,CultureInfo.InvariantCulture,out d)
                     && double.TryParse(exactT,NumberStyles.Float,CultureInfo.InvariantCulture,out t)
-                    && double.TryParse(exactF,NumberStyles.Float,CultureInfo.InvariantCulture,out f)
-                    && d>=20 && d<=500 && t>=.1 && t<=20 && f>=.5 && f<=10) {
-                    lensTest.ledDistance=d;lensTest.screenDistance=t;lensTest.focalLength=f;lensMessage="Exact distances applied.";
-                }else lensMessage="Use D=20..500, display=0.1..20, f=0.5..10 mm (decimal point).";
+                    && d>=20 && d<=500 && t>=.1 && t<=20) {
+                    lensTest.ledDistance=d;lensTest.screenDistance=t;lensMessage="Exact distances applied.";
+                }else lensMessage="Use D=20..500, display=0.1..20 mm (decimal point).";
             }
-            GUILayout.Label("6.10 mm is only a provisional value, not a verified specification of your lens.",small);
-            Slider("Physical lens pitch (mm)",ref lensTest.physicalPitch,.3f,1);
-            Slider("Slant x + slope*y",ref lensTest.slope,0,.6f);
+            GUILayout.Label("n=1.49 and 2 mm vertex thickness are modelling assumptions; no manufacturer focal-distance guarantee.",small);
+
+
             GUILayout.Label("Phase: only every fourth LED is lit",heading);
             lensTest.phase=GUILayout.Toolbar(lensTest.phase,new[]{"0","1","2","3"});
             GUILayout.Label("Lit LED groups each side: "+lensTest.groupsEachSide,small);
@@ -47,7 +50,7 @@ namespace ParallaxSimulation
             Slider("Fixed brightness gain",ref lensGain,.001f,.2f);
             if(GUILayout.Button("Export all 4 illumination phases")) ExportLensTest();
             GUILayout.Space(10);
-            GUILayout.Label("Independent illumination test: no LCD image, observer, Arduino or old gap assumption. Thin lens / geometric optics; uniform source and full lens aperture. No diffraction, aberration, scattering or absolute brightness.",small);
+            GUILayout.Label("Independent illumination test: no LCD image, observer, Arduino or old gap assumption. Thick plano-convex paraxial optics; uniform source and full lens aperture. No diffraction, aberration, scattering or absolute brightness.",small);
             GUILayout.Label(lensMessage,small);
         }
         void UpdateLensTest() {
@@ -68,7 +71,7 @@ namespace ParallaxSimulation
             }
             illumination.SetPixels32(colors);illumination.Apply();lensKey=key;
             shownLensSummary=string.Format(CultureInfo.InvariantCulture,
-                "Calculated image plane: {0:F4} mm from lens   |   image width: {1:F4} mm\nDisplay plane: {2:F4} mm   |   one LED / one lens footprint: {3:F4} mm\nSame-LED image centre period: {4:F5} mm   |   raw shift per LED: {5:F5} mm",
+                "Calculated image plane: {0:F4} mm from CONVEX VERTEX   |   image width: {1:F4} mm\nVertex -> display: {2:F4} mm   |   one LED / one lens footprint: {3:F4} mm\nSame-LED image centre period: {4:F5} mm   |   raw shift per LED: {5:F5} mm",
                 lensTest.ImageDistance,lensTest.ImageWidth,lensTest.screenDistance,lensTest.ScreenWidth,lensTest.ScreenPeriod,lensTest.Magnification*lensTest.ledPitch);
         }
         void PlotLine(Vector2 a,Vector2 b,Color color,float width=1) {
@@ -93,7 +96,7 @@ namespace ParallaxSimulation
                 if(i>0)PlotLine(previous,point,new Color(.3f,1,.5f));previous=point;
             }
             GUI.Label(new Rect(390,785,1010,32),"Profile edges: -"+(lensViewWidth/2).ToString("F2")+" to +"+(lensViewWidth/2).ToString("F2")+" mm. Image uses fixed gain; graph rescales its vertical axis.",small);
-            GUI.Label(new Rect(390,830,1010,95),"Widths are horizontal FULL geometric support, not FWHM. Multiple lens/LED footprints can overlap. Relative density is normalized to unit integral per LED/lens pair: it is not measured irradiance and cannot predict absolute power when distances change. Lens focal length remains provisional. Large off-axis angles exceed the accuracy of this paraxial model.",small);
+            GUI.Label(new Rect(390,830,1010,95),"Widths are horizontal FULL geometric support, not FWHM. Multiple lens/LED footprints can overlap. Relative density is normalized to unit integral per LED/lens pair: it is not measured irradiance and cannot predict absolute power when distances change. Index and vertex thickness are assumed. Large off-axis angles exceed the accuracy of this paraxial model.",small);
         }
         void ExportLensTest() {
             int saved=lensTest.phase;
@@ -109,7 +112,7 @@ namespace ParallaxSimulation
                 }
                 lensTest.phase=saved;
                 File.WriteAllText(prefix+"-settings.json",JsonUtility.ToJson(lensTest,true));
-                File.WriteAllText(prefix+"-readme.txt","Horizontal coordinate, mm. Image width="+lensViewWidth+" mm; height=image width*0.34. Fixed brightness gain="+lensGain+". Relative density normalized per LED/lens pair; not absolute irradiance. Focal length is provisional.\n"+shownLensSummary);
+                File.WriteAllText(prefix+"-readme.txt","Horizontal coordinate, mm. Image width="+lensViewWidth+" mm; height=image width*0.34. Fixed brightness gain="+lensGain+". Relative density normalized per LED/lens pair; not absolute irradiance. Flat entrance toward LED; convex vertex toward display. n and thickness assumed.\n"+shownLensSummary);
                 lensMessage="Saved: "+OutputDirectory;
             }catch(Exception e){lensMessage=e.Message;}
             finally{lensTest.phase=saved;lensKey="";}
