@@ -82,10 +82,10 @@ namespace ParallaxSimulation
         }
         void ToggleTracking() { tracking=!tracking; if(!tracking) activeSettings=settings.Copy(); }
         OpticalSettings Current()
-        { return settings.Copy(); }
+        { settings.useLens=true;settings.SyncLens();var copy=settings.Copy();copy.lens.phase=0;return copy; }
         OpticalSettings Allocation()
         {
-            var s=settings.Copy();
+            var s=Current();
             if(!tracking) { s.headX=activeSettings.headX;s.headY=activeSettings.headY;s.headZ=activeSettings.headZ;s.ipd=activeSettings.ipd;s.yawDegrees=activeSettings.yawDegrees; }
             return s;
         }
@@ -104,6 +104,7 @@ namespace ParallaxSimulation
             var s=Current();
             int framePhase=((phase%4)+4)%4;
             try { s.Validate(); } catch(Exception e) { status=e.Message; return; }
+            SetLensUniforms(visibility,s);
             visibility.SetVector("_EyeL",EyeVector(s.Eye(false)));visibility.SetVector("_EyeR",EyeVector(s.Eye(true)));
             visibility.SetVector("_Region",new Vector4(mapX,mapY,zoomWidth,zoomWidth*432/1024));
             visibility.SetVector("_Panel",new Vector4((float)s.panelWidth,(float)s.panelHeight,s.pixelsX,s.pixelsY));
@@ -125,28 +126,31 @@ namespace ParallaxSimulation
         void DrawDiagram(OpticalSettings s,int framePhase)
         {
             foreach(var l in lines) l.enabled=false;
-            float sourceZ=spreadLayers?-40:-(float)s.Gap;
-            float lensZ=spreadLayers?-80:-(float)s.lensToPanel;
+            var lens=s.lens;
+            float vertexZ=spreadLayers?-80:-(float)lens.screenDistance;
+            float flatZ=spreadLayers?-105:-(float)(lens.screenDistance+lens.thickness);
+            float ledZ=spreadLayers?-220:flatZ-(float)lens.ledDistance;
+            float imageZ=spreadLayers?-50:(float)(lens.ImageDistance-lens.screenDistance);
             Rectangle(0,(float)s.panelWidth,(float)s.panelHeight,0,Color.white);
-            Rectangle(1,(float)s.panelWidth,(float)s.panelHeight,lensZ,new Color(.4f,.4f,.6f));
-            Rectangle(2,(float)s.panelWidth,(float)s.panelHeight,sourceZ,new Color(1,.65f,.15f));
-            int index=3;
-            for(int n=-3;n<=3;n++)
-            {
-                double source=s.Phase(framePhase)+n*80*s.sourcePeriod, h=s.panelHeight*.4;
-                Line(index++,new Color(1,.65f,.15f),new Vector3((float)(source+s.slope*h),(float)-h,sourceZ),new Vector3((float)(source-s.slope*h),(float)h,sourceZ));
-            }
-            for(int e=0;e<2;e++)
-            {
-                Point3 eye=s.Eye(e==1);Color c=e==0?new Color(.22f,.9f,.5f):new Color(.22f,.52f,1);
-                Vector3 v=V(eye);
-                Line(index++,c,v+Vector3.left*7,v+Vector3.right*7);
-                Line(index++,c,v+Vector3.down*7,v+Vector3.up*7);
-                for(int n=-1;n<=1;n++)
-                {
-                    Point3 source=new Point3(s.Phase(framePhase)+n*100*s.sourcePeriod,0,-s.Gap);
-                    Point3 panel=OpticalModel.Project(source,eye,s.Gap);
-                    Line(index++,c,new Vector3((float)source.x,0,sourceZ),V(panel),v);
+            Rectangle(1,(float)s.panelWidth,(float)s.panelHeight,vertexZ,new Color(.4f,.4f,.6f));
+            Rectangle(2,(float)s.panelWidth,(float)s.panelHeight,imageZ,new Color(1,.65f,.15f));
+            Rectangle(3,(float)s.panelWidth,(float)s.panelHeight,flatZ,new Color(.3f,.3f,.5f));
+            int index=4;
+            for(int e=0;e<2;e++) {
+                Point3 eye=s.Eye(e==1);Color color=e==0?new Color(.22f,.9f,.5f):new Color(.22f,.52f,1);
+                Vector3 ev=V(eye);Line(index++,color,ev+Vector3.left*7,ev+Vector3.right*7);
+                for(int n=-2;n<=2;n++) {
+                    double px=n*40,py=0,tx=(eye.x-px)/eye.z,ty=(eye.y-py)/eye.z;
+                    double vx=px-lens.screenDistance*tx,vy=py-lens.screenDistance*ty;
+                    double local=OpticalModel.Wrap(vx+lens.slope*vy,lens.HorizontalPitch);
+                    double power=local/(lens.FocalLength*(1+lens.slope*lens.slope));
+                    double ax=tx+power,ay=ty+power*lens.slope;
+                    double fx=vx-lens.thickness*ax/lens.refractiveIndex,fy=vy-lens.thickness*ay/lens.refractiveIndex;
+                    double lx=fx-lens.ledDistance*ax,ly=fy-lens.ledDistance*ay;
+                    bool lit=lens.IsLit(lx+lens.slope*ly,framePhase);
+                    Line(index++,lit?color:new Color(.2f,.2f,.2f),
+                        new Vector3((float)lx,(float)ly,ledZ),new Vector3((float)fx,(float)fy,flatZ),
+                        new Vector3((float)vx,(float)vy,vertexZ),new Vector3((float)px,(float)py,0),ev);
                 }
             }
             float a=orbit*Mathf.Deg2Rad;
@@ -190,15 +194,9 @@ namespace ParallaxSimulation
             Slider("Eye distance from LCD (mm)",ref settings.headZ,150,1500,"F1");Slider("Eye separation (mm)",ref settings.ipd,40,80,"F1");
             Slider("Head yaw / eye depth difference (deg)",ref settings.yawDegrees,-40,40,"F1");
             GUILayout.Label("2  OPTICS",heading);
-            Slider("Lens to image plane (mm)",ref settings.lensToImage,5.5f,6.49f);
-            Slider("Lens to LCD plane (mm)",ref settings.lensToPanel,6.5f,12f);
-            GUILayout.Label("Image -> LCD gap: "+settings.Gap.ToString("F4")+" mm");
-            Slider("Source period / horizontal (mm)",ref settings.sourcePeriod,.6f,.9f,"F5");
-            Slider("Source width / horizontal (mm)",ref settings.sourceWidth,.02f,.24f,"F4");
-            Slider("Raw shift per LED column (mm)",ref settings.rawPhaseStep,.8f,1.1f,"F5");
-            Slider("Phase-0 source offset (mm)",ref settings.sourceOffset,-.8f,.8f,"F4");
-            Slider("Slope: x + slope*y = constant",ref settings.slope,.2f,.45f,"F4");
-            settings.phaseDirection=GUILayout.Toggle(settings.phaseDirection<0,"Invert image shift (real-image inversion)")?-1:1;
+            LensOpticsControls();
+            GUILayout.Label("Image distance from vertex: "+settings.lens.ImageDistance.ToString("F4")+" mm");
+            GUILayout.Label("Image -> LCD: "+(settings.lens.screenDistance-settings.lens.ImageDistance).ToString("F4")+" mm");
             GUILayout.Label("3  PHASE / PREVIEW",heading);
             phase=GUILayout.Toolbar(phase,new[]{"0","1","2","3"});
             animate=GUILayout.Toggle(animate,"Animate phases slowly (2 phases/sec)");
@@ -219,7 +217,7 @@ namespace ParallaxSimulation
             GUILayout.BeginHorizontal();
             if(GUILayout.Button("Save settings")) SaveSettings();if(GUILayout.Button("Load settings")) LoadSettings();
             GUILayout.EndHorizontal();
-            if(GUILayout.Button("Reset theory defaults")) { settings=new OpticalSettings();tracking=true;phase=0;zoomWidth=24;mapX=mapY=0; }
+            if(GUILayout.Button("Reset theory defaults")) { settings=new OpticalSettings();lensKey="";tracking=true;phase=0;zoomWidth=24;mapX=mapY=0; }
             GUILayout.EndScrollView();GUILayout.EndArea();
 
             if(displayTab==0) {DrawImagePanels();return;}
@@ -239,7 +237,7 @@ namespace ParallaxSimulation
                 GUILayout.Label(report.Summary(),small);
             }
             GUILayout.Space(8);
-            GUILayout.Label("LCD: 528 x 297 mm, 1920 x 1080, assumed RGB stripe.\nStraight rays from the fixed image plane; uniform finite-width lines, unlimited angular emission. No refraction, diffraction, pupil aperture, LCD response or LED timing model.\nCoverage is necessary, not sufficient, for full-resolution stereo.",small);
+            GUILayout.Label("LCD: 528 x 297 mm, 1920 x 1080, assumed RGB stripe.\nReverse rays through flat-entry / convex-exit PMMA, paraxial model. Uniform LED radiance; no diffraction, aberration, pupil aperture, LCD response or LED timing model.\nCoverage is necessary, not sufficient, for full-resolution stereo.",small);
             GUILayout.Label(status,small);
             GUILayout.EndArea();
         }
@@ -256,7 +254,7 @@ namespace ParallaxSimulation
         void SaveSettings()
         { try { Directory.CreateDirectory(OutputDirectory);File.WriteAllText(Path.Combine(OutputDirectory,"settings.json"),JsonUtility.ToJson(settings,true));status="Saved: "+OutputDirectory; } catch(Exception e) {status=e.Message;} }
         void LoadSettings()
-        { try { var s=JsonUtility.FromJson<OpticalSettings>(File.ReadAllText(Path.Combine(OutputDirectory,"settings.json")));s.Validate();settings=s;status="Settings loaded."; } catch(Exception e) {status=e.Message;} }
+        { try { var s=JsonUtility.FromJson<OpticalSettings>(File.ReadAllText(Path.Combine(OutputDirectory,"settings.json")));s.useLens=true;s.Validate();settings=s;lensKey="";status="Settings loaded (shared lens optics)."; } catch(Exception e) {status=e.Message;} }
         void Export()
         {
             try

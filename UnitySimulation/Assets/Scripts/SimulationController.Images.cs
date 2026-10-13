@@ -55,6 +55,7 @@ namespace ParallaxSimulation
         {
             s.Validate();EnsureImageTargets(s);
             var targets=Allocation();
+            SetLensUniforms(eyePreview,s);
             eyePreview.SetVector("_EyeL",EyeVector(s.Eye(false)));eyePreview.SetVector("_EyeR",EyeVector(s.Eye(true)));
             eyePreview.SetVector("_TargetL",EyeVector(targets.Eye(false)));eyePreview.SetVector("_TargetR",EyeVector(targets.Eye(true)));
             eyePreview.SetVector("_Panel",new Vector4((float)s.panelWidth,(float)s.panelHeight,s.pixelsX,s.pixelsY));
@@ -109,7 +110,7 @@ namespace ParallaxSimulation
                 if(GUILayout.Button("Reset ProjectPB parameters")) {
                     legacyHaba=330;legacyMiddle=3420;legacyShift=1;legacySlant=1;legacyDepthCorrection=false;
                 }
-                GUILayout.Label("Original LCD allocation; received views still use the provisional optical model. Lateral calibration is manual (MiddleLine / SHIFT).",small);
+                GUILayout.Label("Original LCD allocation; received views use shared PMMA ray tracing. Lateral calibration is manual (MiddleLine / SHIFT).",small);
             }
             GUILayout.Label("Input pair / diagnostic pattern",small);
             imagePattern=GUILayout.SelectionGrid(imagePattern,new[]{"Images / L-R targets","Left white / Right black","Left black / Right white","Both white"},1);

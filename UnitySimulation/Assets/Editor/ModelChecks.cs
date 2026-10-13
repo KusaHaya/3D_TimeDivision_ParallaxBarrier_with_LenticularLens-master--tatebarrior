@@ -33,7 +33,26 @@ public static class ModelChecks
         var profile=lens.Profile(8192,8);
         double energy=0;foreach(double v in profile)energy+=v*8/8192;
         Check(energy>8/lens.ScreenPeriod-1 && energy<8/lens.ScreenPeriod+1,"Profile integrated pair count");
-        var s=new OpticalSettings();s.Validate();Near(s.Gap,.141,"Plane spacing");
+        // Full pipeline: forward LED ray -> LCD -> eye, then reverse to LED.
+        var physical=new OpticalSettings();physical.Validate();
+        Near(physical.Gap,6.5-physical.lens.ImageDistance,"Shared vertex gap");
+        for(int k=0;k<4;k++)for(int n=-2;n<=2;n++) {
+            double centre=n*physical.lens.HorizontalPitch,u=physical.lens.HorizontalPitch*.2;
+            double led=k*physical.lens.ledPitch+.4;
+            double panel=physical.lens.Ray(centre,u,led,physical.lens.screenDistance);
+            double theta=(panel-centre-u)/physical.lens.screenDistance;
+            var observer=new Point3(panel+600*theta,0,600);
+            double back=OpticalModel.SourceCoordinate(panel,0,observer,physical);
+            Near(back,led,"Forward/reverse PMMA ray agreement");
+            for(int phase=0;phase<4;phase++)Check(OpticalModel.Visible(back,phase,physical)==(phase==k),"Only corresponding LED phase illuminates");
+        }
+        physical.lens.groupsEachSide=0;
+        Check(!physical.lens.IsLit(4*physical.lens.ledPitch,0),"Finite array bounds");
+        var copied=physical.Copy();copied.lens.ledWidth=1;
+        Near(physical.lens.ledWidth,3,"Independent scan snapshot");
+        physical.lens.screenDistance=.5;physical.Validate();
+        Check(physical.Gap<0,"Display before focus is supported");
+        var s=new OpticalSettings {useLens=false,lensToImage=6.359,sourcePeriod=.76928,sourceWidth=.1272,rawPhaseStep=.96227};s.Validate();Near(s.Gap,.141,"Plane spacing");
         // Independent analytic example: line from (10,20,-2) to (30,60,8)
         // reaches z=0 at one fifth of its length, at (14,28,0).
         var p=OpticalModel.Project(new Point3(10,20,-2),new Point3(30,60,8),2);
@@ -54,7 +73,7 @@ public static class ModelChecks
         for(int k=0;k<4;k++) {long sum=0;for(int c=0;c<4;c++) sum+=r.phaseCounts[k,c];Check(sum==r.Total,"Phase totals");}
         // Designed ideal case: four equal-width phases, eyes separated by half a source period.
         // Every sampled centre then has independent left/right slots across the cycle.
-        s=new OpticalSettings {lensToImage=6,lensToPanel=7,headZ=100,sourcePeriod=1,sourceWidth=.25,rawPhaseStep=.25,ipd=50,pixelsX=41,pixelsY=17,panelWidth=4.13,panelHeight=1.71};
+        s=new OpticalSettings {useLens=false,lensToImage=6,lensToPanel=7,headZ=100,sourcePeriod=1,sourceWidth=.25,rawPhaseStep=.25,ipd=50,pixelsX=41,pixelsY=17,panelWidth=4.13,panelHeight=1.71};
         r=CoverageAnalyzer.Analyze(s,null,CancellationToken.None);
         Check(r.coverage[3]==r.Total,"Constructed full-resolution case");
         Check(r.pixelsBothAllRgb==s.pixelsX*s.pixelsY,"Full RGB pixels");
@@ -89,7 +108,7 @@ public static class ModelChecks
                 total/4,"Cycle mean independent of starting phase");
         }
         Check(leakedSamples>0,"Phase mismatch must be detected by diagnostic");
-        var actual=new OpticalSettings();
+        var actual=new OpticalSettings {useLens=false,lensToImage=6.359,sourcePeriod=.76928,sourceWidth=.1272,rawPhaseStep=.96227};
         Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(false),1,0,1,0,true),.125,"Overlap left received mean");
         Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(true),1,0,1,0,true),.125,"Overlap leaks into black right input");
         Near(OpticalModel.Received(0,0,actual,actual.Eye(false),actual.Eye(true),actual.Eye(true),1,0,0,0,true),0,"Blackout prevents this leak");

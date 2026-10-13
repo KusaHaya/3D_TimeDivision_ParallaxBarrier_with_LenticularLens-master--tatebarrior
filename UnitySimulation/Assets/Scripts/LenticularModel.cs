@@ -11,6 +11,7 @@ namespace ParallaxSimulation
         public double EffectiveObjectDistance {get{return ledDistance+thickness/refractiveIndex;}}
         public double FocalLength {get{return radius/(refractiveIndex-1);}}
         public int phase=0,groupsEachSide=4;
+        public LenticularSettings Copy() { return (LenticularSettings)MemberwiseClone(); }
         public double HorizontalPitch {get{return physicalPitch*Math.Sqrt(1+slope*slope);}}
         public double Magnification {get{return screenDistance/EffectiveObjectDistance;}}
         public double Defocus {get{return 1+screenDistance/EffectiveObjectDistance-screenDistance/FocalLength;}}
@@ -21,7 +22,19 @@ namespace ParallaxSimulation
         public double Center(double lensCenter,double ledCenter) {return (1+Magnification)*lensCenter-Magnification*ledCenter;}
         public double Ray(double lensCenter,double apertureOffset,double ledPosition,double z)
         {return lensCenter+apertureOffset+z*((lensCenter+apertureOffset-ledPosition)/EffectiveObjectDistance-apertureOffset/FocalLength);}
+        public double Backtrace(double panelCoordinate,double outgoingSlope) {
+            double exit=panelCoordinate-screenDistance*outgoingSlope;
+            double local=exit-HorizontalPitch*Math.Floor(exit/HorizontalPitch+.5);
+            return exit-EffectiveObjectDistance*(outgoingSlope+local/FocalLength);
+        }
+        public bool IsLit(double ledCoordinate,int k) {
+            double group=Math.Floor((ledCoordinate-k*ledPitch)/(4*ledPitch)+.5);
+            return Math.Abs(group)<=groupsEachSide && Math.Abs(ledCoordinate-(k+4*group)*ledPitch)<=ledWidth/2;
+        }
         public void Validate() {
+            double[] values={ledWidth,ledPitch,ledDistance,screenDistance,physicalPitch,slope,radius,refractiveIndex,thickness};
+            foreach(double v in values) if(double.IsNaN(v)||double.IsInfinity(v)) throw new ArgumentException("Non-finite lens parameter");
+            if(groupsEachSide<0 || groupsEachSide>8 || ledWidth>ledPitch) throw new ArgumentException("Invalid LED array");
             if(ledDistance<=0 || refractiveIndex<=1 || radius<=0 || thickness<0 || EffectiveObjectDistance<=FocalLength || screenDistance<=0 || ledWidth<=0 || ledPitch<=0 || physicalPitch<=0)
                 throw new ArgumentException("Need a real image, n > 1 and positive dimensions.");
         }

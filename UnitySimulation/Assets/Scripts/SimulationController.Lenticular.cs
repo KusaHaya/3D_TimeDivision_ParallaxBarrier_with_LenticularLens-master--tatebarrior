@@ -7,7 +7,28 @@ namespace ParallaxSimulation
 {
     public sealed partial class SimulationController
     {
-        LenticularSettings lensTest=new LenticularSettings();
+        LenticularSettings lensTest {get{return settings.lens;}set{settings.lens=value;}}
+        void SetLensUniforms(Material material,OpticalSettings s) {
+            var l=s.lens;
+            material.SetFloat("_LensDistance",(float)l.screenDistance);
+            material.SetFloat("_ObjectDistance",(float)l.EffectiveObjectDistance);
+            material.SetFloat("_LensPitch",(float)l.HorizontalPitch);
+            material.SetFloat("_LensFocal",(float)l.FocalLength);
+            material.SetFloat("_LedWidth",(float)l.ledWidth);
+            material.SetFloat("_LedPitch",(float)l.ledPitch);
+            material.SetFloat("_LedGroups",l.groupsEachSide);
+        }
+        void LensOpticsControls() {
+            Slider("LED width (mm)",ref lensTest.ledWidth,.2f,10);
+            Slider("LED centre pitch (mm)",ref lensTest.ledPitch,5,35);
+            Slider("LED -> entrance FLAT face (mm)",ref lensTest.ledDistance,20,500,"F1");
+            Slider("CONVEX VERTEX -> display (mm)",ref lensTest.screenDistance,.1f,20);
+            Slider("PMMA index (assumed)",ref lensTest.refractiveIndex,1.45f,1.55f);
+            Slider("Flat face -> vertex thickness (mm)",ref lensTest.thickness,1,3);
+            GUILayout.Label("Shared across ALL tabs / R=0.5 mm, pitch=0.7 mm, slope=1:3",small);
+            GUILayout.Label("Lit LED groups each side: "+lensTest.groupsEachSide,small);
+            lensTest.groupsEachSide=Mathf.RoundToInt(GUILayout.HorizontalSlider(lensTest.groupsEachSide,0,8));
+        }
         Texture2D illumination;
         double[] lightProfile;
         double lensViewWidth=8,lensGain=.05;
@@ -17,14 +38,7 @@ namespace ParallaxSimulation
         void LensControls() {
             GUILayout.Label("LED / LENTICULAR TEST",heading);
             GUILayout.Label("Horizontal widths. 22.5 mm is LED centre pitch (not edge gap).",small);
-            Slider("LED width (mm)",ref lensTest.ledWidth,.2f,10);
-            Slider("LED centre pitch (mm)",ref lensTest.ledPitch,5,35);
-            Slider("LED -> entrance FLAT face (mm)",ref lensTest.ledDistance,20,500,"F1");
-            Slider("CONVEX VERTEX -> display (mm)",ref lensTest.screenDistance,.1f,20);
-            GUILayout.Label("PMMA: flat face toward LED; convex face toward display.",small);
-            Slider("PMMA index (assumed)",ref lensTest.refractiveIndex,1.45f,1.55f);
-            Slider("Flat face -> vertex thickness (mm)",ref lensTest.thickness,1,3);
-            GUILayout.Label("Radius 0.500 mm / physical pitch 0.700 mm / slope 1:3",small);
+            LensOpticsControls();
             GUILayout.Label("Calculated EFL: "+lensTest.FocalLength.ToString("F4")+" mm (not surface spacing)",small);
             GUILayout.Label("Exact entry: LED-to-flat / vertex-to-display (mm)",small);
             exactD=GUILayout.TextField(exactD);exactT=GUILayout.TextField(exactT);
@@ -40,20 +54,18 @@ namespace ParallaxSimulation
 
 
             GUILayout.Label("Phase: only every fourth LED is lit",heading);
-            lensTest.phase=GUILayout.Toolbar(lensTest.phase,new[]{"0","1","2","3"});
-            GUILayout.Label("Lit LED groups each side: "+lensTest.groupsEachSide,small);
-            lensTest.groupsEachSide=Mathf.RoundToInt(GUILayout.HorizontalSlider(lensTest.groupsEachSide,0,8));
-            GUILayout.Label("0 = one LED through many adjacent lenslets",small);
+            phase=GUILayout.Toolbar(phase,new[]{"0","1","2","3"});lensTest.phase=phase;
             if(GUILayout.Button("Place display at calculated image plane")) lensTest.screenDistance=lensTest.ImageDistance;
             if(GUILayout.Button("Reset: LED 3 / 22.5 mm, D=150 mm")) lensTest=new LenticularSettings();
             Slider("View width (mm)",ref lensViewWidth,2,30,"F1");
             Slider("Fixed brightness gain",ref lensGain,.001f,.2f);
             if(GUILayout.Button("Export all 4 illumination phases")) ExportLensTest();
             GUILayout.Space(10);
-            GUILayout.Label("Independent illumination test: no LCD image, observer, Arduino or old gap assumption. Thick plano-convex paraxial optics; uniform source and full lens aperture. No diffraction, aberration, scattering or absolute brightness.",small);
+            GUILayout.Label("Shared optics. This tab shows illumination; IMAGE TEST shows eye delivery. Thick plano-convex paraxial optics; uniform source and full lens aperture. No diffraction, aberration, scattering or absolute brightness.",small);
             GUILayout.Label(lensMessage,small);
         }
         void UpdateLensTest() {
+            lensTest.phase=phase;
             string key=JsonUtility.ToJson(lensTest)+"/"+lensViewWidth+"/"+lensGain;
             if(key==lensKey) return;
             lensTest.Validate();
@@ -99,23 +111,23 @@ namespace ParallaxSimulation
             GUI.Label(new Rect(390,830,1010,95),"Widths are horizontal FULL geometric support, not FWHM. Multiple lens/LED footprints can overlap. Relative density is normalized to unit integral per LED/lens pair: it is not measured irradiance and cannot predict absolute power when distances change. Index and vertex thickness are assumed. Large off-axis angles exceed the accuracy of this paraxial model.",small);
         }
         void ExportLensTest() {
-            int saved=lensTest.phase;
+            int saved=phase;
             try {
                 Directory.CreateDirectory(OutputDirectory);
                 string prefix=Path.Combine(OutputDirectory,DateTime.Now.ToString("yyyyMMdd-HHmmss")+"-lenticular");
                 for(int k=0;k<4;k++) {
-                    lensTest.phase=k;UpdateLensTest();
+                    phase=k;lensTest.phase=k;UpdateLensTest();
                     File.WriteAllBytes(prefix+"-phase"+k+".png",illumination.EncodeToPNG());
                     var csv=new StringBuilder("horizontal_oblique_coordinate_mm,relative_density\n");
                     for(int i=0;i<lightProfile.Length;i++)csv.AppendFormat(CultureInfo.InvariantCulture,"{0:R},{1:R}\n",((i+.5)/lightProfile.Length-.5)*profileSpan,lightProfile[i]);
                     File.WriteAllText(prefix+"-phase"+k+".csv",csv.ToString());
                 }
-                lensTest.phase=saved;
+                phase=saved;lensTest.phase=saved;
                 File.WriteAllText(prefix+"-settings.json",JsonUtility.ToJson(lensTest,true));
                 File.WriteAllText(prefix+"-readme.txt","Horizontal coordinate, mm. Image width="+lensViewWidth+" mm; height=image width*0.34. Fixed brightness gain="+lensGain+". Relative density normalized per LED/lens pair; not absolute irradiance. Flat entrance toward LED; convex vertex toward display. n and thickness assumed.\n"+shownLensSummary);
                 lensMessage="Saved: "+OutputDirectory;
             }catch(Exception e){lensMessage=e.Message;}
-            finally{lensTest.phase=saved;lensKey="";}
+            finally{phase=saved;lensTest.phase=saved;lensKey="";}
         }
     }
 }

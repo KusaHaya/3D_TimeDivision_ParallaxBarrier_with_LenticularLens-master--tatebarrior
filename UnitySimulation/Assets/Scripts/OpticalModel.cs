@@ -11,25 +11,38 @@ namespace ParallaxSimulation
     [Serializable]
     public sealed class OpticalSettings
     {
+        public LenticularSettings lens = new LenticularSettings();
+        // False is used only by analytic regression fixtures, not by the application.
+        public bool useLens = true;
+        public void SyncLens() {
+            if(!useLens) return;
+            if(lens==null) lens=new LenticularSettings();
+            lens.Validate();
+            lensToPanel=lens.screenDistance;lensToImage=lens.ImageDistance;
+            sourceWidth=lens.ImageWidth;sourcePeriod=(1+lens.ImageDistance/lens.EffectiveObjectDistance)*lens.HorizontalPitch;
+            rawPhaseStep=lens.ImageDistance/lens.EffectiveObjectDistance*lens.ledPitch;
+            sourceOffset=0;slope=lens.slope;phaseDirection=-1;
+        }
         public double panelWidth = 528, panelHeight = 297;
         public int pixelsX = 1920, pixelsY = 1080;
-        public double lensToPanel = 6.5, lensToImage = 6.359;
-        public double sourcePeriod = 0.76928, sourceWidth = 0.1272;
-        public double rawPhaseStep = 0.96227, sourceOffset = 0;
+        public double lensToPanel = 6.5, lensToImage = 1.0273348519362187;
+        public double sourcePeriod = 0.742873527842714, sourceWidth = 0.020364464692482914;
+        public double rawPhaseStep = 0.15273348519362187, sourceOffset = 0;
         public double slope = 1.0 / 3.0;
         public int phaseDirection = -1;
         public double headX = 0, headY = 0, headZ = 600, ipd = 64, yawDegrees = 0;
         public double Gap { get { return lensToPanel - lensToImage; } }
-        public OpticalSettings Copy() { return (OpticalSettings)MemberwiseClone(); }
+        public OpticalSettings Copy() { var c=(OpticalSettings)MemberwiseClone();c.lens=lens==null?new LenticularSettings():lens.Copy();return c; }
         public void Validate()
         {
+            SyncLens();
             double[] values = {panelWidth,panelHeight,lensToPanel,lensToImage,sourcePeriod,
                 sourceWidth,rawPhaseStep,sourceOffset,slope,headX,headY,headZ,ipd,yawDegrees};
             foreach (double v in values)
                 if (double.IsNaN(v) || double.IsInfinity(v)) throw new ArgumentException("Non-finite parameter");
             if (panelWidth <= 0 || panelHeight <= 0 || pixelsX < 1 || pixelsY < 1 || pixelsX > 8192 || pixelsY > 8192)
                 throw new ArgumentException("Invalid panel dimensions");
-            if (Gap <= 0 || sourcePeriod <= 0 || sourceWidth <= 0 || sourceWidth > sourcePeriod || ipd <= 0)
+            if ((!useLens && Gap <= 0) || sourcePeriod <= 0 || sourceWidth <= 0 || sourceWidth > sourcePeriod || ipd <= 0)
                 throw new ArgumentException("Need positive gap and 0 < source width <= period");
             if (phaseDirection != -1 && phaseDirection != 1) throw new ArgumentException("Invalid phase direction");
             if (Eye(false).z <= 0 || Eye(true).z <= 0) throw new ArgumentException("Eyes must be in front of LCD");
@@ -60,11 +73,16 @@ namespace ParallaxSimulation
         }
         public static double SourceCoordinate(double x, double y, Point3 eye, OpticalSettings s)
         {
+            if(s.useLens) {
+                double panel=x+s.lens.slope*y;
+                double theta=(eye.x+s.lens.slope*eye.y-panel)/eye.z;
+                return s.lens.Backtrace(panel,theta);
+            }
             double ratio = s.Gap / eye.z;
             return (1+ratio)*(x+s.slope*y) - ratio*(eye.x+s.slope*eye.y);
         }
         public static bool Visible(double sourceCoordinate, int phase, OpticalSettings s)
-        { return Math.Abs(Wrap(sourceCoordinate-s.Phase(phase),s.sourcePeriod)) <= s.sourceWidth*.5; }
+        { return s.useLens?s.lens.IsLit(sourceCoordinate,phase):Math.Abs(Wrap(sourceCoordinate-s.Phase(phase),s.sourcePeriod)) <= s.sourceWidth*.5; }
         // bit 0 = left eye receives light, bit 1 = right eye receives light.
         public static int Classify(double x, double y, int phase, OpticalSettings s)
         {

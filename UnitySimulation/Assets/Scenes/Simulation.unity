@@ -44,15 +44,28 @@ MonoBehaviour:
   m_Name:
   m_EditorClassIdentifier:
   settings:
+    useLens: 1
+    lens:
+      ledWidth: 3
+      ledPitch: 22.5
+      ledDistance: 150
+      screenDistance: 6.5
+      physicalPitch: 0.7
+      slope: 0.3333333333333333
+      radius: 0.5
+      refractiveIndex: 1.49
+      thickness: 2
+      phase: 0
+      groupsEachSide: 4
     panelWidth: 528
     panelHeight: 297
     pixelsX: 1920
     pixelsY: 1080
     lensToPanel: 6.5
-    lensToImage: 6.359
-    sourcePeriod: 0.76928
-    sourceWidth: 0.1272
-    rawPhaseStep: 0.96227
+    lensToImage: 1.0273348519362187
+    sourcePeriod: 0.742873527842714
+    sourceWidth: 0.020364464692482914
+    rawPhaseStep: 0.15273348519362187
     sourceOffset: 0
     slope: 0.3333333333333333
     phaseDirection: -1
