@@ -1,6 +1,6 @@
 # 時分割パララックスバリア：共有レンズモデル
 
-Unity 6000.6.4f1 / Built-in Render Pipeline。`realsense-ray-tracking`ブランチのUnitySimulationをUnity Hubに追加し、Assets/Scenes/Simulation.unityを開いてPlay。Gameビュー1440×960推奨。Python・RealSense・Arduinoは不要です。
+Unity 6000.6.4f1 / Built-in Render Pipeline。`realsense-ray-tracking`ブランチのUnitySimulationをUnity Hubに追加し、Assets/Scenes/Simulation.unityを開いてPlay。Gameビュー1440×960推奨。シミュレーションのみならPython・RealSense・Arduinoは不要です。実機出力の手順は [HARDWARE.md](HARDWARE.md) を参照してください。
 
 ## 全タブ共通の光学条件
 
@@ -28,13 +28,13 @@ LED/レンズの各組の積分を1に規格化した相対分布で、距離変
 
 初期描画方式は元プログラムの **ProjectPB: still shader**。realsenseコミット1246f420のinterleave.fragに基づき、斜め座標S=3*x+channel+slantY*y（左下原点）に対し、q=(S-(MiddleLine-48*haba))/max(haba,1)、value=S-q+2*phase+SHIFTを計算します。正の剰余value mod 8が4以上ならL、未満ならR。初期haba=330、MiddleLine=3420、SHIFT=1、slantY=1。
 
-ProjectPB: SBS integer shaderはqをゼロ方向へ整数化します。入力はどちらも左右別画像。元の色補正は含みません。Calibrate depth hereとDepth correctionでhabaにint((Zref-Z)/2)を加算（mm）。横位相はMiddleLine/SHIFTで手動調整し、カメラ固有の横追跡は移植していません。
+ProjectPB: SBS integer shaderはqをゼロ方向へ整数化します。入力はどちらも左右別画像。元の色補正は含みません。Calibrate depth hereとDepth correctionでhabaにint((Zref-Z)/2)を加算（mm）。横位相はMiddleLine/SHIFTで手動調整できます。実機モードでは元の横方向・奥行き補正式とOSC追跡も利用できます。
 
 **Geometric allocation** は新しい共通のレンズ逆追跡でL/R割当を決定します。このモードのみBlack/Mix/Left priorityの重なり処理を選択できます。hで描画用視点を固定し、観察視点を動かして比較できます。
 
-PNG/JPGを左右別々に選ぶか、内蔵L/R・白黒診断画像を使用します。LCD DRIVEは1枚の物理的な液晶画像です。左右の受光結果は必ずその同じ画像と同じ点灯位相から計算します。
+PNG/JPG/P6 PPMを左右別々に選ぶか、内蔵L/R・白黒診断画像を使用します。LCD DRIVEは1枚の物理的な液晶画像です。左右の受光結果は必ずその同じ画像と同じ点灯位相から計算します。
 
-Average all 4 phases OFFで単位相、ONで静止視点の線形光量平均。ゲインは固定（初期4）で暗部の自動補完はありません。Export synchronized phases 0-3で同じ視点の全位相・平均を保存します。観察画像は液晶正面の座標へ整形した比較画像で、透視投影の網膜像ではありません。
+Average all 4 phases OFFで単位相、ONで静止視点の線形光量平均。ゲインは固定（初期1）で暗部の自動補完はありません。Export synchronized phases 0-3で同じ視点の全位相・平均を保存します。観察画像は液晶正面の座標へ整形した比較画像で、透視投影の網膜像ではありません。
 
 ## GEOMETRY / 4位相集計
 
@@ -56,8 +56,8 @@ D=LED–平面、T=厚さ、n=屈折率、R=曲率半径、t=頂点–液晶と�
 
 ## 限界と検証
 
-近軸光学モデルであり、曲面上での厳密なSnell屈折、球面収差、全反射、回折、開口遮蔽、レンズの有限外形、LED放射特性、瞳径、サブピクセル開口面積、液晶ガラスの屈折、LCD応答・Arduino同期は含みません。特にこの高開口数レンズや斜入射では実機と差が出ます。相対的な照射分布と眼方向の可視判定は別の量で、絶対光量の一致は保証しません。
+近軸光学モデルであり、曲面上での厳密なSnell屈折、球面収差、全反射、回折、開口遮蔽、レンズの有限外形、LED放射特性、瞳径、サブピクセル開口面積、液晶ガラスの屈折、LCD応答・実際のArduino同期の遅延は光学モデルに含みません。実機モードの通信についてはHARDWARE.mdを参照してください。特にこの高開口数レンズや斜入射では実機と差が出ます。相対的な照射分布と眼方向の可視判定は別の量で、絶対光量の一致は保証しません。
 
 Validation/Run-ModelChecks.ps1（.NET 10）またはParallax > Run Model Checksで検査。順逆光線一致、位相、結像、幅、有限LED配列、従来の解析ケースを検査します。C#とD3D HLSL単体コンパイルを確認済み。Unity 6000.6.4でのGPU画面・実機比較は未検証です。
 
-保存先はApplication.persistentDataPath/Results（画面に表示）。Parallax > Build Windows SimulatorでWindowsビルドし、別PCにはBuilds/Windows全体を渡します。
+保存先はApplication.persistentDataPath/Results（画面に表示）。Parallax > Build Windows Hardware AppでWindowsビルドし、別PCにはBuilds/Windows全体を渡します。

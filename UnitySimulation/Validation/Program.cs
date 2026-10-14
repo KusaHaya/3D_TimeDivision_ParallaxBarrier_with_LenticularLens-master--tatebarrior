@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using ParallaxSimulation;
 ModelChecks.Run();
+HardwareChecks.Run();
+Console.WriteLine("PASS: OSC/UDP pairing, PPM and measured-eye checks");
 Console.WriteLine("PASS: model checks");
 var s=new OpticalSettings();
 var r=CoverageAnalyzer.Analyze(s,null,CancellationToken.None);

@@ -18,10 +18,12 @@ Shader "Parallax/EyePreview"
             // Stored in linear light, one texture for each illumination phase.
             sampler2D _Drive0, _Drive1, _Drive2, _Drive3;
             float4 _TargetL, _TargetR;
-            // 0/1=received eyes, 2=linear LCD drive, 3/4=inputs, 5=display LCD drive.
+            // 0/1=received eyes, 2=linear LCD drive, 3/4=inputs, 5=cached LCD, 6=live LCD.
             float _AllocationMode, _LegacyHaba, _LegacyMiddle, _LegacyShift, _LegacySlant;
             float _Output, _Pattern, _HasLeft, _HasRight, _Conflict, _Cycle, _Gain;
+            float _SwapEyes;
             float3 inputColor(float2 uv,bool right) {
+                if(_SwapEyes>.5)right=!right;
                 if(_Pattern>0.5 && _Pattern<1.5) return right?0:1;
                 if(_Pattern>1.5 && _Pattern<2.5) return right?1:0;
                 if(_Pattern>2.5) return 1;
@@ -69,8 +71,8 @@ Shader "Parallax/EyePreview"
                 float2 pixel=min(floor(i.uv*_Panel.zw),_Panel.zw-1);
                 float2 uv=(pixel+.5)/_Panel.zw;
                 float3 l=inputColor(uv,false),r=inputColor(uv,true);
-                if(_Output>4.5) return float4(LinearToGammaSpace(storedDrive(uv,(int)_Phase)),1);
-                if(_Output>2.5) return float4(LinearToGammaSpace(_Output<3.5?l:r),1);
+                if(_Output>4.5 && _Output<5.5) return float4(LinearToGammaSpace(storedDrive(uv,(int)_Phase)),1);
+                if(_Output>2.5 && _Output<4.5) return float4(LinearToGammaSpace(_Output<3.5?l:r),1);
                 float3 result=0;
                 [unroll] for(int channel=0;channel<3;channel++) {
                     float2 subuv=(pixel+float2((channel+.5)/3.0,.5))/_Panel.zw;
@@ -95,6 +97,7 @@ Shader "Parallax/EyePreview"
                     result[channel]=sum*_Gain/divisor;
                     }
                 }
+                if(_Output>5.5) return float4(LinearToGammaSpace(result),1); // native hardware output, no preview gain
                 if(_Output>1.5) return float4(result,1); // linear-light drive buffer
                 return float4(LinearToGammaSpace(saturate(result)),1);
             }

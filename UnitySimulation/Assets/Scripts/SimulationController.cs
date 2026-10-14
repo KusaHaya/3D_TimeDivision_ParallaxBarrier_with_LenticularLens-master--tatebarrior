@@ -62,10 +62,13 @@ namespace ParallaxSimulation
             InitImages();
             string[] args=Environment.GetCommandLineArgs();
             for(int i=0;i+1<args.Length;i++) if(args[i]=="--capture") capturePath=args[i+1];
-            StartAnalysis();
+            InitHardware(screenCamera);
+            if(!hardwareMode) StartAnalysis();
         }
         void Update()
         {
+            UpdateHardware();
+            if(hardwareMode)return;
             if(animate) { phaseClock+=Time.unscaledDeltaTime; if(phaseClock>=.5f) { phase=(phase+1)%4;phaseClock=0; } }
             if(analysis!=null && analysis.IsCompleted)
             {
@@ -82,7 +85,15 @@ namespace ParallaxSimulation
         }
         void ToggleTracking() { tracking=!tracking; if(!tracking) activeSettings=settings.Copy(); }
         OpticalSettings Current()
-        { settings.useLens=true;settings.SyncLens();var copy=settings.Copy();copy.lens.phase=0;return copy; }
+        {
+            settings.useLens=true;settings.SyncLens();var copy=settings.Copy();copy.lens.phase=0;
+            copy.useMeasuredEyes=eyesCalibrated;
+            if(eyesCalibrated) {
+                copy.measuredLeft=new Point3(measuredLeft.x,measuredLeft.y,measuredLeft.z);
+                copy.measuredRight=new Point3(measuredRight.x,measuredRight.y,measuredRight.z);
+            }
+            return copy;
+        }
         OpticalSettings Allocation()
         {
             var s=Current();
@@ -168,6 +179,7 @@ namespace ParallaxSimulation
         }
         void OnGUI()
         {
+            if(hardwareMode) {HardwareKeys();return;}
             // IMGUI key event also works when Unity 6 uses the new Input System only.
             // Do not toggle while a path text field is being edited.
             if(Event.current.type==EventType.KeyDown && Event.current.keyCode==KeyCode.H && GUIUtility.keyboardControl==0)
@@ -178,7 +190,7 @@ namespace ParallaxSimulation
             GUI.matrix=Matrix4x4.Scale(new Vector3(scale,scale,1));
             GUI.Box(new Rect(0,0,1440,960),"");
             GUI.Label(new Rect(20,12,1390,35),"TIME-DIVISION PARALLAX  /  OPTICAL SIMULATOR",title);
-            GUI.Label(new Rect(20,50,1380,40),"Fixed oblique source images  >  LCD allocation  >  tracked eyes    |    Geometry simulation; NOT a hardware output",small);
+            GUI.Label(new Rect(20,50,1380,40),"Fixed oblique source images  >  LCD allocation  >  tracked eyes    |    F1 returns from hardware output to these controls",small);
             displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST","GEOMETRY","LED / LENS TEST"});
             if(displayTab==2) {
                 GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
@@ -187,6 +199,7 @@ namespace ParallaxSimulation
             }
             GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
             scroll=GUILayout.BeginScrollView(scroll);
+            HardwareControls();
             ImageControls();
             GUILayout.Label("1  OBSERVER",heading);
             bool next=GUILayout.Toggle(tracking,"Tracking ON [h] - update LCD allocation"); if(next!=tracking) ToggleTracking();
@@ -280,6 +293,7 @@ namespace ParallaxSimulation
             if(mapTexture!=null) {mapTexture.Release();Destroy(mapTexture);} if(diagramTexture!=null) {diagramTexture.Release();Destroy(diagramTexture);}
             if(lines!=null) foreach(var l in lines) if(l!=null) Destroy(l.sharedMaterial);
             Destroy(visibility);Destroy(lineMaterial);
+            DestroyHardware();
             DestroyImages();
             if(illumination!=null)Destroy(illumination);
         }

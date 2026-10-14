@@ -31,13 +31,16 @@ namespace ParallaxSimulation
         public double slope = 1.0 / 3.0;
         public int phaseDirection = -1;
         public double headX = 0, headY = 0, headZ = 600, ipd = 64, yawDegrees = 0;
+        public bool useMeasuredEyes;
+        public Point3 measuredLeft=new Point3(-32,0,600),measuredRight=new Point3(32,0,600);
         public double Gap { get { return lensToPanel - lensToImage; } }
         public OpticalSettings Copy() { var c=(OpticalSettings)MemberwiseClone();c.lens=lens==null?new LenticularSettings():lens.Copy();return c; }
         public void Validate()
         {
             SyncLens();
             double[] values = {panelWidth,panelHeight,lensToPanel,lensToImage,sourcePeriod,
-                sourceWidth,rawPhaseStep,sourceOffset,slope,headX,headY,headZ,ipd,yawDegrees};
+                sourceWidth,rawPhaseStep,sourceOffset,slope,headX,headY,headZ,ipd,yawDegrees,
+                measuredLeft.x,measuredLeft.y,measuredLeft.z,measuredRight.x,measuredRight.y,measuredRight.z};
             foreach (double v in values)
                 if (double.IsNaN(v) || double.IsInfinity(v)) throw new ArgumentException("Non-finite parameter");
             if (panelWidth <= 0 || panelHeight <= 0 || pixelsX < 1 || pixelsY < 1 || pixelsX > 8192 || pixelsY > 8192)
@@ -48,15 +51,17 @@ namespace ParallaxSimulation
             if (Eye(false).z <= 0 || Eye(true).z <= 0) throw new ArgumentException("Eyes must be in front of LCD");
         }
         // Eyes in this synthetic pose are labelled left=-x, right=+x.
-        // A future camera adapter must explicitly map subject left/right and camera axes.
+        // The OSC adapter preserves independent measured eye depth and height.
         public Point3 Eye(bool right)
         {
+            if(useMeasuredEyes)return right?measuredRight:measuredLeft;
             double a = yawDegrees * Math.PI / 180, sign = right ? 1 : -1;
             return new Point3(headX + sign * ipd * .5 * Math.Cos(a), headY,
                 headZ + sign * ipd * .5 * Math.Sin(a));
         }
         public double Phase(int k) { return sourceOffset + phaseDirection * k * rawPhaseStep; }
     }
+    [Serializable]
     public struct Point3
     {
         public double x,y,z;

@@ -4,6 +4,9 @@
     <Compile Include="../Assets/Scripts/OpticalModel.cs" />
     <Compile Include="../Assets/Scripts/LenticularModel.cs" />
     <Compile Include="../Assets/Editor/ModelChecks.cs" />
+    <Compile Include="../Assets/Editor/HardwareChecks.cs" />
+    <Compile Include="../Assets/Scripts/EyeOscReceiver.cs" />
+    <Compile Include="../Assets/Scripts/PpmImage.cs" />
     <Compile Include="Program.cs" />
   </ItemGroup>
 </Project>

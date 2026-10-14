@@ -28,36 +28,40 @@ namespace ParallaxSimulation
             return Mathf.Max(1,legacyHaba+(legacyDepthCorrection?(int)((legacyReferenceZ-s.headZ)/2):0));
         }
         bool integrateCycle=true;
-        float imageGain=4;
+        bool swapImages;
+        float imageGain=1;
         void InitImages()
         {
             eyePreview=new Material(Resources.Load<Shader>("EyePreview"));
             imageViews=new RenderTexture[5];
             phaseDrives=new RenderTexture[4];
         }
-        void EnsureImageTargets(OpticalSettings s)
+        void EnsureImageTargets(OpticalSettings s,bool lcdOnly=false)
         {
             for(int i=0;i<imageViews.Length;i++)
             {
+                if(lcdOnly && i!=2)continue;
                 if(imageViews[i]!=null && imageViews[i].width==s.pixelsX && imageViews[i].height==s.pixelsY) continue;
                 if(imageViews[i]!=null) {imageViews[i].Release();Destroy(imageViews[i]);}
                 imageViews[i]=new RenderTexture(s.pixelsX,s.pixelsY,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
                 imageViews[i].filterMode=FilterMode.Point;imageViews[i].Create();
             }
             for(int i=0;i<4;i++) {
+                if(lcdOnly)break;
                 if(phaseDrives[i]!=null && phaseDrives[i].width==s.pixelsX && phaseDrives[i].height==s.pixelsY) continue;
                 if(phaseDrives[i]!=null) {phaseDrives[i].Release();Destroy(phaseDrives[i]);}
                 phaseDrives[i]=new RenderTexture(s.pixelsX,s.pixelsY,0,RenderTextureFormat.ARGBHalf,RenderTextureReadWrite.Linear);
                 phaseDrives[i].filterMode=FilterMode.Point;phaseDrives[i].Create();driveCacheKey="";
             }
         }
-        void RenderImages(OpticalSettings s,int framePhase)
+        void RenderImages(OpticalSettings s,int framePhase,bool lcdOnly=false)
         {
-            s.Validate();EnsureImageTargets(s);
+            s.Validate();EnsureImageTargets(s,lcdOnly);
             var targets=Allocation();
             SetLensUniforms(eyePreview,s);
             eyePreview.SetVector("_EyeL",EyeVector(s.Eye(false)));eyePreview.SetVector("_EyeR",EyeVector(s.Eye(true)));
-            eyePreview.SetVector("_TargetL",EyeVector(targets.Eye(false)));eyePreview.SetVector("_TargetR",EyeVector(targets.Eye(true)));
+            eyePreview.SetVector("_TargetL",eyesCalibrated?(Vector4)measuredLeft:EyeVector(targets.Eye(false)));
+            eyePreview.SetVector("_TargetR",eyesCalibrated?(Vector4)measuredRight:EyeVector(targets.Eye(true)));
             eyePreview.SetVector("_Panel",new Vector4((float)s.panelWidth,(float)s.panelHeight,s.pixelsX,s.pixelsY));
             eyePreview.SetFloat("_Gap",(float)s.Gap);eyePreview.SetFloat("_Period",(float)s.sourcePeriod);
             eyePreview.SetFloat("_Width",(float)s.sourceWidth);eyePreview.SetFloat("_Step",(float)s.rawPhaseStep);
@@ -67,13 +71,21 @@ namespace ParallaxSimulation
             eyePreview.SetTexture("_RightImage",rightImage!=null?rightImage:Texture2D.whiteTexture);
             eyePreview.SetFloat("_HasLeft",leftImage!=null?1:0);eyePreview.SetFloat("_HasRight",rightImage!=null?1:0);
             eyePreview.SetFloat("_Pattern",imagePattern);eyePreview.SetFloat("_Conflict",conflictPolicy);
+            eyePreview.SetFloat("_SwapEyes",swapImages?1:0);
             eyePreview.SetFloat("_Cycle",integrateCycle?1:0);eyePreview.SetFloat("_Gain",imageGain);
             eyePreview.SetFloat("_AllocationMode",allocationMode);
             eyePreview.SetFloat("_LegacyHaba",EffectiveHaba(targets));
             eyePreview.SetFloat("_LegacyMiddle",legacyMiddle);
             eyePreview.SetFloat("_LegacyShift",legacyShift);
             eyePreview.SetFloat("_LegacySlant",legacySlant);
+            if(lcdOnly) {
+                // Hardware evaluates only the displayed phase in one pass, including live eye movement.
+                eyePreview.SetFloat("_Output",6);eyePreview.SetFloat("_Phase",framePhase);
+                Graphics.Blit(Texture2D.whiteTexture,imageViews[2],eyePreview);imagePhase=framePhase;
+                return;
+            }
             string key=allocationMode+"/"+EffectiveHaba(targets)+"/"+legacyMiddle+"/"+legacyShift+"/"+legacySlant+"/"+JsonUtility.ToJson(targets)+"/"+imagePattern+"/"+conflictPolicy;
+            key+="/swap="+swapImages;
             // Compare texture references directly; no version-specific object ID API.
             if(key!=driveCacheKey || cachedLeftImage!=leftImage || cachedRightImage!=rightImage) {
                 // Unbind old SRVs before writing these same buffers. The drive pass
@@ -89,7 +101,7 @@ namespace ParallaxSimulation
             }
             for(int k=0;k<4;k++) eyePreview.SetTexture("_Drive"+k,phaseDrives[k]);
             eyePreview.SetFloat("_Phase",framePhase);
-            for(int i=0;i<5;i++) {eyePreview.SetFloat("_Output",i==2?5:i);Graphics.Blit(Texture2D.whiteTexture,imageViews[i],eyePreview);}
+            for(int i=0;i<5;i++) {if(lcdOnly && i!=2)continue;eyePreview.SetFloat("_Output",i==2?5:i);Graphics.Blit(Texture2D.whiteTexture,imageViews[i],eyePreview);}
             imagePhase=framePhase;imageCyclePresented=integrateCycle;imageGainPresented=imageGain;
         }
         void ImageControls()
@@ -113,8 +125,9 @@ namespace ParallaxSimulation
                 GUILayout.Label("Original LCD allocation; received views use shared PMMA ray tracing. Lateral calibration is manual (MiddleLine / SHIFT).",small);
             }
             GUILayout.Label("Input pair / diagnostic pattern",small);
+            swapImages=GUILayout.Toggle(swapImages,"Swap left / right images [Shift+R in output]");
             imagePattern=GUILayout.SelectionGrid(imagePattern,new[]{"Images / L-R targets","Left white / Right black","Left black / Right white","Both white"},1);
-            GUILayout.Label("PNG / JPG paths (or Inspector texture slots)",small);
+            GUILayout.Label("PNG / JPG / P6 PPM paths (or Inspector textures)",small);
             leftPath=GUILayout.TextField(leftPath);rightPath=GUILayout.TextField(rightPath);
             if(GUILayout.Button("Load image pair from paths")) LoadPair();
 #if UNITY_EDITOR
@@ -149,7 +162,11 @@ namespace ParallaxSimulation
             if(string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Choose both image paths.");
             var texture=new Texture2D(2,2,TextureFormat.RGB24,false);
             try {
-                if(!texture.LoadImage(File.ReadAllBytes(path.Trim().Trim('"')))) throw new ArgumentException("Use a PNG or JPG image.");
+                path=path.Trim().Trim('"');byte[] data=File.ReadAllBytes(path);
+                if(Path.GetExtension(path).Equals(".ppm",StringComparison.OrdinalIgnoreCase)) {
+                    int w,h;byte[] rgb=PpmImage.Decode(data,out w,out h);
+                    Destroy(texture);texture=new Texture2D(w,h,TextureFormat.RGB24,false);texture.LoadRawTextureData(rgb);texture.Apply();
+                } else if(!texture.LoadImage(data)) throw new ArgumentException("Use a PNG, JPG or P6 PPM image.");
                 texture.name=Path.GetFileName(path);texture.wrapMode=TextureWrapMode.Clamp;texture.filterMode=FilterMode.Point;
                 return texture;
             } catch {Destroy(texture);throw;}
