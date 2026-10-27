@@ -60,6 +60,7 @@ namespace ParallaxSimulation
             }
             activeSettings=settings.Copy();
             InitImages();
+            InitMura();
             string[] args=Environment.GetCommandLineArgs();
             for(int i=0;i+1<args.Length;i++) if(args[i]=="--capture") capturePath=args[i+1];
             InitHardware(screenCamera);
@@ -126,6 +127,7 @@ namespace ParallaxSimulation
             Graphics.Blit(Texture2D.whiteTexture,mapTexture,visibility);
             DrawDiagram(s,framePhase);
             if(displayTab==0 || forceImages) RenderImages(s,framePhase);
+            if(displayTab==3 || forceImages) RenderMura(s,framePhase);
             presentedPhase=framePhase;
             presentationId++;
         }
@@ -191,11 +193,16 @@ namespace ParallaxSimulation
             GUI.Box(new Rect(0,0,1440,960),"");
             GUI.Label(new Rect(20,12,1390,35),"TIME-DIVISION PARALLAX  /  OPTICAL SIMULATOR",title);
             GUI.Label(new Rect(20,50,1380,40),"Fixed oblique source images  >  LCD allocation  >  tracked eyes    |    F1 returns from hardware output to these controls",small);
-            displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST","GEOMETRY","LED / LENS TEST"});
+            displayTab=GUI.Toolbar(new Rect(390,92,1024,28),displayTab,new[]{"IMAGE TEST","GEOMETRY","LED / LENS TEST","BACKLIGHT MURA"});
             if(displayTab==2) {
                 GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
                 scroll=GUILayout.BeginScrollView(scroll);LensControls();GUILayout.EndScrollView();GUILayout.EndArea();
                 DrawLensPanels();return;
+            }
+            if(displayTab==3) {
+                GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
+                scroll=GUILayout.BeginScrollView(scroll);MuraControls();GUILayout.EndScrollView();GUILayout.EndArea();
+                DrawMuraPanels();return;
             }
             GUILayout.BeginArea(new Rect(15,95,350,845),GUI.skin.box);
             scroll=GUILayout.BeginScrollView(scroll);
@@ -295,6 +302,7 @@ namespace ParallaxSimulation
             Destroy(visibility);Destroy(lineMaterial);
             DestroyHardware();
             DestroyImages();
+            DestroyMura();
             if(illumination!=null)Destroy(illumination);
         }
     }
