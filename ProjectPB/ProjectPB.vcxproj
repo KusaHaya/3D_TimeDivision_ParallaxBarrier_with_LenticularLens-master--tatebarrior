@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM">
@@ -194,7 +194,8 @@
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)Library\bin\*.dll" "$(OutDir)"
+      <Command>if exist "$(SolutionDir)Library\bin\*.dll" copy /Y "$(SolutionDir)Library\bin\*.dll" "$(OutDir)"
+if exist "$(SolutionDir)ProjectPB-Transfer\*.dll" copy /Y "$(SolutionDir)ProjectPB-Transfer\*.dll" "$(OutDir)"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -219,7 +220,8 @@
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)Library\bin\*.dll" "$(OutDir)"
+      <Command>if exist "$(SolutionDir)Library\bin\*.dll" copy /Y "$(SolutionDir)Library\bin\*.dll" "$(OutDir)"
+if exist "$(SolutionDir)ProjectPB-Transfer\*.dll" copy /Y "$(SolutionDir)ProjectPB-Transfer\*.dll" "$(OutDir)"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -244,7 +246,8 @@
       <SubSystem>Console</SubSystem>
     </Link>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)Library\bin\*.dll" "$(OutDir)"
+      <Command>if exist "$(SolutionDir)Library\bin\*.dll" copy /Y "$(SolutionDir)Library\bin\*.dll" "$(OutDir)"
+if exist "$(SolutionDir)ProjectPB-Transfer\*.dll" copy /Y "$(SolutionDir)ProjectPB-Transfer\*.dll" "$(OutDir)"
 </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -281,6 +284,20 @@
     <ClInclude Include="TemporalEyeDetection.h" />
     <ClInclude Include="Texture.h" />
   </ItemGroup>
+  <!--
+    The legacy project used to add the bundled Library directory only to the
+    Release configurations.  Keep the dependency root project-relative and
+    make it available to IntelliSense and the compiler in every configuration.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(SolutionDir)Library\include;$(SolutionDir)Library\include\FreeImage;$(SolutionDir)Library\include\glew;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(SolutionDir)Library\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
   <!-- The installed Boost 1.73 binaries were built with MSVC v141. -->
   <ItemDefinitionGroup Condition="'$(Platform)'=='x64'">
     <ClCompile>
