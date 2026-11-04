@@ -16,14 +16,14 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(NativeDependencyRoot)\include;$(NativeDependencyRoot)\include\FreeImage;$(BoostRoot);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <!-- Asio/Format require no precompiled Boost libraries in this app. -->
-      <PreprocessorDefinitions>BOOST_ALL_NO_LIB;BOOST_ERROR_CODE_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>FREEGLUT_LIB_PRAGMAS=0;BOOST_ALL_NO_LIB;BOOST_ERROR_CODE_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>$(NativeRuntimeLibrary)</RuntimeLibrary>
       <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(NativeLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glew32.lib;avformat.lib;avcodec.lib;avutil.lib;avdevice.lib;swscale.lib;swresample.lib;FreeImage.lib;freeglut.lib;SDL2.lib;SDL2main.lib;legacy_stdio_definitions.lib;ws2_32.lib;winmm.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>glew32.lib;avformat.lib;avcodec.lib;avutil.lib;avdevice.lib;swscale.lib;swresample.lib;FreeImage.lib;freeglut.lib;SDL2.lib;SDL2main.lib;legacy_stdio_definitions.lib;ws2_32.lib;winmm.lib;opengl32.lib;glu32.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <TargetMachine>MachineX64</TargetMachine>
       <SubSystem>Console</SubSystem>
     </Link>
