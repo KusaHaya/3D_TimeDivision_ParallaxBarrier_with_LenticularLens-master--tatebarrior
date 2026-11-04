@@ -18,6 +18,11 @@
 #define HOLD_FRAME_3 213
 
 const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
+// Logical LCD phase 0,1,2,3 -> physical LED phase 0,3,2,1.
+// Restore the earlier LED direction; use the same mapping for pulses and hold.
+const int PHASE_TO_LED[4] = {0, 3, 2, 1};
+int bottomPin(int phase) { return OUTPUT_PINS[PHASE_TO_LED[phase & 3]]; }
+int topPin(int phase) { return OUTPUT_PINS[PHASE_TO_LED[phase & 3] + 4]; }
 // Existing wiring convention: phase+4 = TOP, phase = BOTTOM.
 #if REFRESH_RATE == 144
 const unsigned long TOP_ON_US = 2083;
@@ -67,8 +72,8 @@ void holdPhase(int phase) {
   turnAllLightsOff();
   cnt = phase & 3;
   previousPhase = -1;
-  digitalWrite(OUTPUT_PINS[cnt+4], HIGH);
-  digitalWrite(OUTPUT_PINS[cnt], HIGH);
+  digitalWrite(topPin(cnt), HIGH);
+  digitalWrite(bottomPin(cnt), HIGH);
 }
 void startPhase(int phase) {
   turnAllLightsOff();
@@ -78,7 +83,7 @@ void startPhase(int phase) {
   bottomSwitched = false;
   pulseActive = true;
   // Re-light the preceding phase's bottom at the next frame command.
-  if (previousPhase >= 0) digitalWrite(OUTPUT_PINS[previousPhase], HIGH);
+  if (previousPhase >= 0) digitalWrite(bottomPin(previousPhase), HIGH);
 }
 void updateBacklight() {
   if (!pulseActive) return;
@@ -91,12 +96,12 @@ void updateBacklight() {
     return;
   }
   if (!topStarted && elapsed >= TOP_ON_US) {
-    digitalWrite(OUTPUT_PINS[cnt+4], HIGH);
+    digitalWrite(topPin(cnt), HIGH);
     topStarted = true;
   }
   if (!bottomSwitched && elapsed >= BOTTOM_SWITCH_US) {
-    if (previousPhase >= 0) digitalWrite(OUTPUT_PINS[previousPhase], LOW);
-    digitalWrite(OUTPUT_PINS[cnt], HIGH);
+    if (previousPhase >= 0) digitalWrite(bottomPin(previousPhase), LOW);
+    digitalWrite(bottomPin(cnt), HIGH);
     bottomSwitched = true;
   }
 }

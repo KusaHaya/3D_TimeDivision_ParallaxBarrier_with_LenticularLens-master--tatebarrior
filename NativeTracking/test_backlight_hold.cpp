@@ -15,7 +15,8 @@ void send(int c){Serial.q.push(c);loop();}
 void advance(unsigned long t){clockUs=t;loop();}
 void off(){for(int p:OUTPUT_PINS)assert(pins[p]==LOW);}
 void allOn(){for(int p:OUTPUT_PINS)assert(pins[p]==HIGH);}
-void pair(int phase){for(int i=0;i<8;i++)assert(pins[OUTPUT_PINS[i]]==((i==phase||i==phase+4)?HIGH:LOW));}
+int expectedPhysical(int logical){const int expected[4]={0,3,2,1};return expected[logical&3];}
+void pair(int phase){phase=expectedPhysical(phase);for(int i=0;i<8;i++)assert(pins[OUTPUT_PINS[i]]==((i==phase||i==phase+4)?HIGH:LOW));}
 int main(){
  setup();allOn();assert(!running && !pulseActive);
  advance(1000000);allOn();
@@ -30,12 +31,12 @@ int main(){
   const unsigned long base=clockUs+10000;advance(base);
   send(TIME_DIV_0+phase);off();
   advance(base+TOP_ON_US-1);off();
-  advance(base+TOP_ON_US);assert(pins[OUTPUT_PINS[phase+4]]==HIGH);assert(pins[OUTPUT_PINS[phase]]==LOW);
+  advance(base+TOP_ON_US);assert(pins[OUTPUT_PINS[expectedPhysical(phase)+4]]==HIGH);assert(pins[OUTPUT_PINS[expectedPhysical(phase)]]==LOW);
   advance(base+BOTTOM_SWITCH_US);pair(phase);
   advance(base+ALL_OFF_US);off();
   int next=(phase+1)&3; unsigned long nextBase=base+10000;advance(nextBase);
-  send(TIME_DIV_0+next);assert(pins[OUTPUT_PINS[phase]]==HIGH);
-  advance(nextBase+TOP_ON_US);assert(pins[OUTPUT_PINS[next+4]]==HIGH);assert(pins[OUTPUT_PINS[phase]]==HIGH);
+  send(TIME_DIV_0+next);assert(pins[OUTPUT_PINS[expectedPhysical(phase)]]==HIGH);
+  advance(nextBase+TOP_ON_US);assert(pins[OUTPUT_PINS[expectedPhysical(next)+4]]==HIGH);assert(pins[OUTPUT_PINS[expectedPhysical(phase)]]==HIGH);
   advance(nextBase+BOTTOM_SWITCH_US);pair(next);
   send(HOLD_FRAME_0+phase);pair(phase);
   advance(nextBase+50000);pair(phase);
