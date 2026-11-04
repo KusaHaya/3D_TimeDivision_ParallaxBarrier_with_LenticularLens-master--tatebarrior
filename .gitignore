@@ -365,3 +365,6 @@ FodyWeavers.xsd
 # Local native tracking dependencies
 vcpkg_installed/
 NativeTracking/models/
+
+# Machine-local native dependency paths
+/ProjectPB/NativeBuild.local.props

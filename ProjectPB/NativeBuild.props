@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Optional machine-specific paths; do not commit this local file. -->
+  <Import Project="$(MSBuildThisFileDirectory)NativeBuild.local.props" Condition="Exists('$(MSBuildThisFileDirectory)NativeBuild.local.props')" />
+  <PropertyGroup>
+    <NativeDependencyRoot Condition="'$(NativeDependencyRoot)'==''">$(MSBuildThisFileDirectory)..\Library</NativeDependencyRoot>
+    <NativeLibraryDir Condition="'$(NativeLibraryDir)'==''">$(NativeDependencyRoot)\lib</NativeLibraryDir>
+    <NativeRuntimeDir Condition="'$(NativeRuntimeDir)'==''">$(NativeDependencyRoot)\bin</NativeRuntimeDir>
+    <BoostRoot Condition="'$(BoostRoot)'=='' and Exists('$(BOOST_DIR_173)\boost\asio.hpp')">$(BOOST_DIR_173)</BoostRoot>
+    <BoostRoot Condition="'$(BoostRoot)'=='' and Exists('$(BOOST_DIR)\boost\asio.hpp')">$(BOOST_DIR)</BoostRoot>
+    <BoostRoot Condition="'$(BoostRoot)'=='' and Exists('$(NativeDependencyRoot)\include\boost\asio.hpp')">$(NativeDependencyRoot)\include</BoostRoot>
+    <NativeRuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebugDLL</NativeRuntimeLibrary>
+    <NativeRuntimeLibrary Condition="'$(Configuration)'!='Debug'">MultiThreadedDLL</NativeRuntimeLibrary>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(NativeDependencyRoot)\include;$(NativeDependencyRoot)\include\FreeImage;$(BoostRoot);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- Asio/Format require no precompiled Boost libraries in this app. -->
+      <PreprocessorDefinitions>BOOST_ALL_NO_LIB;BOOST_ERROR_CODE_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>$(NativeRuntimeLibrary)</RuntimeLibrary>
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(NativeLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>glew32.lib;avformat.lib;avcodec.lib;avutil.lib;avdevice.lib;swscale.lib;swresample.lib;FreeImage.lib;freeglut.lib;SDL2.lib;SDL2main.lib;legacy_stdio_definitions.lib;ws2_32.lib;winmm.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <TargetMachine>MachineX64</TargetMachine>
+      <SubSystem>Console</SubSystem>
+    </Link>
+  </ItemDefinitionGroup>
+  <Target Name="CheckNativeBuildDependencies" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Platform)'!='x64'" Text="ProjectPB native build supports x64. Select Debug/x64 or Release/x64." />
+    <Error Condition="!Exists('$(BoostRoot)\boost\asio.hpp')" Text="Boost headers not found. Set BoostRoot in ProjectPB/NativeBuild.local.props, or set BOOST_DIR_173/BOOST_DIR. See NativeTracking/VisualStudio2026.md." />
+    <Error Condition="!Exists('$(NativeDependencyRoot)\include\GL\glew.h') or !Exists('$(NativeDependencyRoot)\include\libavcodec\avcodec.h')" Text="Bundled native headers not found. Set NativeDependencyRoot to a Library folder containing include, lib and bin." />
+    <ItemGroup>
+      <RequiredNativeLibrary Include="glew32;avformat;avcodec;avutil;avdevice;swscale;swresample;FreeImage;freeglut;SDL2;SDL2main" />
+    </ItemGroup>
+    <Error Condition="!Exists('$(NativeLibraryDir)\%(RequiredNativeLibrary.Identity).lib')" Text="Missing native library: $(NativeLibraryDir)\%(RequiredNativeLibrary.Identity).lib. Use x64 libraries matching the bundled headers." />
+  </Target>
+  <Target Name="CopyNativeRuntime" AfterTargets="Build">
+    <ItemGroup>
+      <NativeRuntimeDll Include="$(NativeRuntimeDir)\*.dll" />
+      <TransferRuntimeDll Include="$(MSBuildThisFileDirectory)..\ProjectPB-Transfer\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeRuntimeDll);@(TransferRuntimeDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
