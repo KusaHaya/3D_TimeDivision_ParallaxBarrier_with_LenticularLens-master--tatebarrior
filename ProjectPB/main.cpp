@@ -2,6 +2,7 @@
 #define NOMINMAX
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
@@ -688,7 +689,33 @@ bool GetPic = false;
 int prt = 0;
 
 
+
+// Aggregate timings only; never print once per frame.
+using FrameClock = std::chrono::steady_clock;
+void ReportFrameTiming(FrameClock::time_point begin, FrameClock::time_point beforeSwap,
+    FrameClock::time_point afterSwap, FrameClock::time_point afterSerial)
+{
+    static auto lastReport = FrameClock::now();
+    static unsigned frames = 0;
+    static double drawMs = 0, swapMs = 0, serialMs = 0;
+    auto ms = [](FrameClock::time_point a, FrameClock::time_point b) {
+        return std::chrono::duration<double, std::milli>(b-a).count();
+    };
+    ++frames;
+    drawMs += ms(begin, beforeSwap);
+    swapMs += ms(beforeSwap, afterSwap);
+    serialMs += ms(afterSwap, afterSerial);
+    const double elapsed = std::chrono::duration<double>(afterSerial-lastReport).count();
+    if (elapsed >= 2.0) {
+        printf("[PERF] %.1f FPS | draw %.2f ms | swap %.2f ms | serial %.2f ms | %s\n",
+            frames/elapsed, drawMs/frames, swapMs/frames, serialMs/frames,
+            frameHoldMode ? "HOLD" : "RUN");
+        frames = 0; drawMs = swapMs = serialMs = 0; lastReport = afterSerial;
+    }
+}
+
 void disp(void) {
+    const auto frameBegin = FrameClock::now();
     UpdateTracking();
 	int i, e;
 
@@ -765,7 +792,9 @@ void disp(void) {
 		glutPostRedisplay();
 		return;
 	}
+	const auto beforeSwap = FrameClock::now();
 	glutSwapBuffers();
+	const auto afterSwap = FrameClock::now();
 
 	// Send the hold command only after the selected display frame has been
 	// presented, then leave that backlight pair continuously on.
@@ -777,6 +806,8 @@ void disp(void) {
 		// Send one command for every frame that has just been presented.
 		SendTimeDivisionFrame(displayedKk);
 	}
+
+	if (!frameHoldMode) ReportFrameTiming(frameBegin, beforeSwap, afterSwap, FrameClock::now());
 
 	// 提示したフレームに対応する時分割位相を進める。
 	if (running && !frameHoldMode) {
