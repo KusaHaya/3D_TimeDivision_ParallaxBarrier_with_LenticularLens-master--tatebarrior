@@ -1,31 +1,40 @@
 #include <cassert>
 #include <queue>
 #include <iostream>
-const int HIGH=1, LOW=0, OUTPUT=1;
-int pins[32]={};
-struct SerialStub { std::queue<int> q; void begin(int) {} int available(){return !q.empty();} int read(){int x=q.front();q.pop();return x;} } Serial;
+const int HIGH=1,LOW=0,OUTPUT=1;
+int pins[32]={}; unsigned long clockUs=0;
+unsigned long micros(){return clockUs;}
 void pinMode(int,int){}
 void digitalWrite(int p,int v){pins[p]=v;}
-void delay(int){}
-void delayMicroseconds(unsigned int){}
+struct SerialStub {
+ std::queue<int> q; void begin(int){} int available(){return !q.empty();}
+ int read(){int c=q.front();q.pop();return c;}
+} Serial;
 #include "../ProjectPB/Arduino.txt"
 void send(int c){Serial.q.push(c);loop();}
-void expectPair(int phase){
- for(int i=0;i<8;i++)assert(pins[OUTPUT_PINS[i]]==((i==phase||i==phase+4)?HIGH:LOW));
-}
-void expectOff(){for(int p:OUTPUT_PINS)assert(pins[p]==LOW);}
+void advance(unsigned long t){clockUs=t;loop();}
+void off(){for(int p:OUTPUT_PINS)assert(pins[p]==LOW);}
+void pair(int phase){for(int i=0;i<8;i++)assert(pins[OUTPUT_PINS[i]]==((i==phase||i==phase+4)?HIGH:LOW));}
 int main(){
- setup();
+ setup();off();
  for(int phase=0;phase<4;phase++){
-  send(HOLD_FRAME_0+phase);expectPair(phase);
-  for(int i=0;i<50;i++)loop();
-  expectPair(phase);
-  send(TIME_DIV_0+((phase+1)%4));expectPair(phase);
+  send(RESET_SYNC);send(ENABLE_TIMEDIVISION);
+  const unsigned long base=clockUs+10000;advance(base);
+  send(TIME_DIV_0+phase);off();
+  advance(base+TOP_ON_US-1);off();
+  advance(base+TOP_ON_US);assert(pins[OUTPUT_PINS[phase+4]]==HIGH);assert(pins[OUTPUT_PINS[phase]]==LOW);
+  advance(base+BOTTOM_SWITCH_US);pair(phase);
+  advance(base+ALL_OFF_US);off();
+  int next=(phase+1)&3; unsigned long nextBase=base+10000;advance(nextBase);
+  send(TIME_DIV_0+next);assert(pins[OUTPUT_PINS[phase]]==HIGH);
+  advance(nextBase+TOP_ON_US);assert(pins[OUTPUT_PINS[next+4]]==HIGH);assert(pins[OUTPUT_PINS[phase]]==HIGH);
+  advance(nextBase+BOTTOM_SWITCH_US);pair(next);
+  send(HOLD_FRAME_0+phase);pair(phase);
+  advance(nextBase+50000);pair(phase);
+  send(TIME_DIV_0+next);pair(phase);
+  send(RESET_SYNC);off();send(ENABLE_TIMEDIVISION);assert(running);off();
  }
- send(RESET_SYNC);expectOff();assert(cnt==0 && PIN_PAST==-1);
- send(ENABLE_TIMEDIVISION);assert(running);expectOff();
- for(int phase=0;phase<4;phase++){send(TIME_DIV_0+phase);assert(cnt==phase);expectOff();}
- send(HOLD_FRAME_2);expectPair(2);
- send(RESET_SYNC);send(ENABLE_TIMEDIVISION);send(TIME_DIV_0);assert(cnt==0);expectOff();
- std::cout<<"PASS: hold all 4 pairs, persist without commands, ignore timed pulses while held, reset/resume, one phase per frame\n";
+ // Hold interrupts an in-progress pulse immediately, without an 8ms delay.
+ send(TIME_DIV_0);send(HOLD_FRAME_0+3);pair(3);
+ std::cout<<"PASS "<<REFRESH_RATE<<"Hz: 4 phases, timing boundaries, previous bottom, off interval, hold, reset/resume\n";
 }
