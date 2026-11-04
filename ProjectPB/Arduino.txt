@@ -31,7 +31,7 @@ const unsigned long ALL_OFF_US = 7500;
 #error Set REFRESH_RATE to 120 or 144 to use a validated timing table.
 #endif
 
-bool running = true;
+bool running = false;
 bool pulseActive = false;
 bool topStarted = false;
 bool bottomSwitched = false;
@@ -52,6 +52,14 @@ void resetBacklight() {
   turnAllLightsOff();
   previousPhase = -1;
   cnt = 0;
+}
+// Standalone illumination, before the PC app starts and after normal exit.
+void idleAllLightsOn() {
+  cancelPulse();
+  running = false;
+  previousPhase = -1;
+  cnt = 0;
+  for (int i=0; i<8; ++i) digitalWrite(OUTPUT_PINS[i], HIGH);
 }
 void holdPhase(int phase) {
   cancelPulse();
@@ -122,18 +130,17 @@ void handleCommand(int command) {
       }
       break;
     case CONNECTION_BEGIN:
-    case CONNECTION_END:
       resetBacklight(); running = false; break;
+    case CONNECTION_END:
     case LIGHT_EXIT:
-      cancelPulse(); running = false; previousPhase = -1;
-      for(int i=0;i<8;++i) digitalWrite(OUTPUT_PINS[i],HIGH);
+      idleAllLightsOn();
       break;
   }
 }
 void setup() {
   Serial.begin(115200);
   for(int i=0;i<8;++i) pinMode(OUTPUT_PINS[i],OUTPUT);
-  resetBacklight();
+  idleAllLightsOn();
 }
 void loop() {
   updateBacklight();

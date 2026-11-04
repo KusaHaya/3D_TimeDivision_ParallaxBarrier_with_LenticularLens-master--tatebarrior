@@ -14,9 +14,17 @@ struct SerialStub {
 void send(int c){Serial.q.push(c);loop();}
 void advance(unsigned long t){clockUs=t;loop();}
 void off(){for(int p:OUTPUT_PINS)assert(pins[p]==LOW);}
+void allOn(){for(int p:OUTPUT_PINS)assert(pins[p]==HIGH);}
 void pair(int phase){for(int i=0;i<8;i++)assert(pins[OUTPUT_PINS[i]]==((i==phase||i==phase+4)?HIGH:LOW));}
 int main(){
- setup();off();
+ setup();allOn();assert(!running && !pulseActive);
+ advance(1000000);allOn();
+ send(TIME_DIV_0);allOn();
+ send(CONNECTION_BEGIN);off();
+ send(CONNECTION_END);allOn();advance(2000000);allOn();
+ send(ENABLE_TIMEDIVISION);send(TIME_DIV_0);
+ send(LIGHT_EXIT);allOn();advance(3000000);allOn();
+ send(ENABLE_TIMEDIVISION);off();
  for(int phase=0;phase<4;phase++){
   send(RESET_SYNC);send(ENABLE_TIMEDIVISION);
   const unsigned long base=clockUs+10000;advance(base);
@@ -34,6 +42,10 @@ int main(){
   send(TIME_DIV_0+next);pair(phase);
   send(RESET_SYNC);off();send(ENABLE_TIMEDIVISION);assert(running);off();
  }
+ // Exit during hold restores standalone all-on, without stale scheduled off.
+ send(HOLD_FRAME_0+1);pair(1);send(CONNECTION_END);allOn();
+ advance(clockUs+100000);allOn();
+ send(ENABLE_TIMEDIVISION);
  // Hold interrupts an in-progress pulse immediately, without an 8ms delay.
  send(TIME_DIV_0);send(HOLD_FRAME_0+3);pair(3);
  std::cout<<"PASS "<<REFRESH_RATE<<"Hz: 4 phases, timing boundaries, previous bottom, off interval, hold, reset/resume\n";
