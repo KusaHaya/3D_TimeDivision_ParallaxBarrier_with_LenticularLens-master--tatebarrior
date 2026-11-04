@@ -18,7 +18,12 @@
 #define LIGHT_CON_7 107
 #define LIGHT_EXIT 110
 
+#define RESET_SYNC 20
 #define NEXT_TIMEDIVISION 21
+#define HOLD_FRAME_0 210
+#define HOLD_FRAME_1 211
+#define HOLD_FRAME_2 212
+#define HOLD_FRAME_3 213
 
 // 4時分割 同時制御用コマンド (新規追加)
 #define TIME_DIV_0 200
@@ -182,31 +187,36 @@ void loop()
    //   }
       break;
 
-    // --- ここからが本命の4時分割ペア制御 ---
-  case TIME_DIV_0:
-  {
-    if (running) {
-      turnAllLightsOff();
-      runTwoPhaseBlock_0();
-    }
-    break;
-  }
+    // PC sends exactly one phase for each presented display frame.
+    case TIME_DIV_0:
+    case TIME_DIV_1:
+    case TIME_DIV_2:
+    case TIME_DIV_3:
+      if (running) {
+        cnt = incomingByte - TIME_DIV_0;
+        turnAllLightsOff();
+        onDelaySimultaneous(OUTPUT_PINS[cnt + 4], OUTPUT_PINS[cnt]);
+      }
+      break;
 
-  case TIME_DIV_2:
-  {
-    if (running) {
+    // Continuous pair output; do not call the pulsed output routine here.
+    case HOLD_FRAME_0:
+    case HOLD_FRAME_1:
+    case HOLD_FRAME_2:
+    case HOLD_FRAME_3:
+      running = false;
+      cnt = incomingByte - HOLD_FRAME_0;
       turnAllLightsOff();
-      runTwoPhaseBlock_2();
-    }
-    break;
-  }
+      PIN_PAST = -1;
+      digitalWrite(OUTPUT_PINS[cnt + 4], HIGH);
+      digitalWrite(OUTPUT_PINS[cnt], HIGH);
+      break;
 
-  case TIME_DIV_1:
-  case TIME_DIV_3:
-  {
-    // 今回はPCから送らない想定なので何もしない
-    break;
-  }
+    case RESET_SYNC:
+      turnAllLightsOff();
+      PIN_PAST = -1;
+      cnt = 0;
+      break;
 
     case NEXT_TIMEDIVISION:
     {
@@ -222,6 +232,8 @@ void loop()
     // --- 制御ここまで ---
 
     case ENABLE_TIMEDIVISION:
+      turnAllLightsOff();
+      PIN_PAST = -1;
       running = true;
       break;
     case DISABLE_TIMEDIVISION:
