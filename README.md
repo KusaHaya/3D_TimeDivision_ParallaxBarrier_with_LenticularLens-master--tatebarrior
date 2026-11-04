@@ -1,3 +1,5 @@
+> Visual Studio 2026 で C++ 表示アプリをビルドする場合は [現在のビルド手順](NativeTracking/VisualStudio2026.md) を参照してください。現在の追跡入力は外部 EyeTracker-RS の OSC です。[接続手順](NativeTracking/OSC-Tracking.md)
+
 # このリポジトリについて
 レンチキュラレンズを使った時分割パララックスバリアシステムのプログラム 
 
