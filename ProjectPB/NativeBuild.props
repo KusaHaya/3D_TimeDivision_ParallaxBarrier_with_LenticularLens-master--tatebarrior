@@ -9,6 +9,7 @@
     <BoostRoot Condition="'$(BoostRoot)'=='' and Exists('$(BOOST_DIR_173)\boost\asio.hpp')">$(BOOST_DIR_173)</BoostRoot>
     <BoostRoot Condition="'$(BoostRoot)'=='' and Exists('$(BOOST_DIR)\boost\asio.hpp')">$(BOOST_DIR)</BoostRoot>
     <BoostRoot Condition="'$(BoostRoot)'=='' and Exists('$(NativeDependencyRoot)\include\boost\asio.hpp')">$(NativeDependencyRoot)\include</BoostRoot>
+    <NativeOpenGlImportDir>$(IntDir)NativeOpenGL</NativeOpenGlImportDir>
     <NativeRuntimeLibrary Condition="'$(Configuration)'=='Debug'">MultiThreadedDebugDLL</NativeRuntimeLibrary>
     <NativeRuntimeLibrary Condition="'$(Configuration)'!='Debug'">MultiThreadedDLL</NativeRuntimeLibrary>
   </PropertyGroup>
@@ -17,13 +18,14 @@
       <AdditionalIncludeDirectories>$(NativeDependencyRoot)\include;$(NativeDependencyRoot)\include\FreeImage;$(BoostRoot);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <!-- Asio/Format require no precompiled Boost libraries in this app. -->
       <PreprocessorDefinitions>FREEGLUT_LIB_PRAGMAS=0;BOOST_ALL_NO_LIB;BOOST_ERROR_CODE_HEADER_ONLY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>$(NativeRuntimeLibrary)</RuntimeLibrary>
       <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(NativeLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glew32.lib;avformat.lib;avcodec.lib;avutil.lib;avdevice.lib;swscale.lib;swresample.lib;FreeImage.lib;freeglut.lib;SDL2.lib;SDL2main.lib;legacy_stdio_definitions.lib;ws2_32.lib;winmm.lib;opengl32.lib;glu32.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(NativeOpenGlImportDir)\glew32.lib;avformat.lib;avcodec.lib;avutil.lib;avdevice.lib;swscale.lib;swresample.lib;FreeImage.lib;$(NativeOpenGlImportDir)\freeglut.lib;SDL2.lib;SDL2main.lib;legacy_stdio_definitions.lib;ws2_32.lib;winmm.lib;opengl32.lib;glu32.lib;gdi32.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <TargetMachine>MachineX64</TargetMachine>
       <SubSystem>Console</SubSystem>
     </Link>
@@ -33,9 +35,16 @@
     <Error Condition="!Exists('$(BoostRoot)\boost\asio.hpp')" Text="Boost headers not found. Set BoostRoot in ProjectPB/NativeBuild.local.props, or set BOOST_DIR_173/BOOST_DIR. See NativeTracking/VisualStudio2026.md." />
     <Error Condition="!Exists('$(NativeDependencyRoot)\include\GL\glew.h') or !Exists('$(NativeDependencyRoot)\include\libavcodec\avcodec.h')" Text="Bundled native headers not found. Set NativeDependencyRoot to a Library folder containing include, lib and bin." />
     <ItemGroup>
-      <RequiredNativeLibrary Include="glew32;avformat;avcodec;avutil;avdevice;swscale;swresample;FreeImage;freeglut;SDL2;SDL2main" />
+      <RequiredNativeLibrary Include="avformat;avcodec;avutil;avdevice;swscale;swresample;FreeImage;SDL2;SDL2main" />
     </ItemGroup>
     <Error Condition="!Exists('$(NativeLibraryDir)\%(RequiredNativeLibrary.Identity).lib')" Text="Missing native library: $(NativeLibraryDir)\%(RequiredNativeLibrary.Identity).lib. Use x64 libraries matching the bundled headers." />
+  </Target>
+  <!-- Bundled .lib files are x86; derive x64 imports from the shipped x64 DLLs. -->
+  <Target Name="BuildNativeOpenGlImports" BeforeTargets="Link" DependsOnTargets="CheckNativeBuildDependencies"
+          Inputs="$(MSBuildProjectDirectory)\..\ProjectPB-Transfer\freeglut.dll;$(MSBuildProjectDirectory)\..\ProjectPB-Transfer\glew32.dll;$(MSBuildProjectDirectory)\..\NativeTracking\BuildImportLibrary.ps1"
+          Outputs="$(NativeOpenGlImportDir)\freeglut.lib;$(NativeOpenGlImportDir)\glew32.lib">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\NativeTracking\BuildImportLibrary.ps1&quot; -Dll &quot;$(MSBuildProjectDirectory)\..\ProjectPB-Transfer\freeglut.dll&quot; -OutputLib &quot;$(NativeOpenGlImportDir)\freeglut.lib&quot; -LibExe &quot;$(VCToolsInstallDir)bin\Hostx64\x64\lib.exe&quot;" />
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\NativeTracking\BuildImportLibrary.ps1&quot; -Dll &quot;$(MSBuildProjectDirectory)\..\ProjectPB-Transfer\glew32.dll&quot; -OutputLib &quot;$(NativeOpenGlImportDir)\glew32.lib&quot; -LibExe &quot;$(VCToolsInstallDir)bin\Hostx64\x64\lib.exe&quot;" />
   </Target>
   <Target Name="CopyNativeRuntime" AfterTargets="Build">
     <ItemGroup>
