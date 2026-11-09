@@ -24,6 +24,9 @@ uniform float slantY;       // 旧方式の W + H 相当なら 1.0
 
 
 
+uniform int leftEnabled;
+uniform int rightEnabled;
+
 out vec4 color;
 
 
@@ -139,6 +142,14 @@ void main()
     finalColor.b = bLeft ? leftColor.b : rightColor.b;
 
 
+
+
+    // Apply the eye mask to the final output so OFF is exactly black.
+    float maskBase = floor(gl_FragCoord.x) * 3.0;
+    float maskY = floor(gl_FragCoord.y);
+    if ((shouldShowLeftEye(maskBase, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.r = 0.0;
+    if ((shouldShowLeftEye(maskBase + 1.0, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.g = 0.0;
+    if ((shouldShowLeftEye(maskBase + 2.0, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.b = 0.0;
 
     color = finalColor;
 

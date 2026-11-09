@@ -166,6 +166,8 @@ GLuint videoshaderProgram;
 // --- uniform location cache (image shader) ---
 GLint u_img_leftTexture = -1;
 GLint u_img_rightTexture = -1;
+GLint u_img_leftEnabled = -1;
+GLint u_img_rightEnabled = -1;
 GLint u_img_haba = -1;
 GLint u_img_totalShift = -1;
 GLint u_img_timeStep = -1;
@@ -182,6 +184,8 @@ GLint u_vid_slantY = -1;
 
 // --- uniform location cache (video shader) ---
 GLint u_vid_sbsTexture = -1;
+GLint u_vid_leftEnabled = -1;
+GLint u_vid_rightEnabled = -1;
 GLint u_vid_haba = -1;
 GLint u_vid_totalShift = -1;
 GLint u_vid_timeStep = -1;
@@ -486,6 +490,8 @@ void init(void) {
 	// --- cache uniform locations (image) ---
 	u_img_leftTexture = glGetUniformLocation(shaderProgram, "leftTexture");
 	u_img_rightTexture = glGetUniformLocation(shaderProgram, "rightTexture");
+	u_img_leftEnabled = glGetUniformLocation(shaderProgram, "leftEnabled");
+	u_img_rightEnabled = glGetUniformLocation(shaderProgram, "rightEnabled");
 	u_img_haba = glGetUniformLocation(shaderProgram, "haba");
 	u_img_totalShift = glGetUniformLocation(shaderProgram, "totalShift");
 	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
@@ -499,6 +505,8 @@ void init(void) {
 
 	// --- cache uniform locations (video) ---
 	u_vid_sbsTexture = glGetUniformLocation(videoshaderProgram, "sbsTexture");
+	u_vid_leftEnabled = glGetUniformLocation(videoshaderProgram, "leftEnabled");
+	u_vid_rightEnabled = glGetUniformLocation(videoshaderProgram, "rightEnabled");
 	u_vid_haba = glGetUniformLocation(videoshaderProgram, "haba");
 	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
 	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
@@ -566,6 +574,8 @@ void renderInterleavedImage() {
 	glUniform1f(u_img_haba, (float)haba);
 	glUniform1f(u_img_totalShift, (float)totalShift);
 	glUniform1i(u_img_timeStep, kk);
+	glUniform1i(u_img_leftEnabled, eyeleft);
+	glUniform1i(u_img_rightEnabled, eyeright);
 	glUniform1f(u_img_manualShift, (float)SHIFT);
 	if (u_img_slantY >= 0)
 		glUniform1f(u_img_slantY, barrierSlantY);
@@ -605,6 +615,8 @@ void renderInterleavedVideo() {
 	glUniform1f(u_vid_haba, (float)haba);
 	glUniform1f(u_vid_totalShift, (float)totalShift);
 	glUniform1i(u_vid_timeStep, kk);
+	glUniform1i(u_vid_leftEnabled, eyeleft);
+	glUniform1i(u_vid_rightEnabled, eyeright);
 	glUniform1f(u_vid_manualShift, (float)SHIFT);
 
 	// 旧方式の斜め座標W + Hに対応する係数。
@@ -1048,18 +1060,22 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case 'b':
 		eyeright = 1;
 		glutDisplayFunc(disp);
+		glutPostRedisplay();
 		break;
 	case 'B':
 		eyeright = 0;
 		glutDisplayFunc(disp);
+		glutPostRedisplay();
 		break;
 	case 'v':
 		eyeleft = 1;
 		glutDisplayFunc(disp);
+		glutPostRedisplay();
 		break;
 	case 'V':
 		eyeleft = 0;
 		glutDisplayFunc(disp);
+		glutPostRedisplay();
 		break;
 	case 'S':
 		VideoMode->Mode3D = !VideoMode->Mode3D;
