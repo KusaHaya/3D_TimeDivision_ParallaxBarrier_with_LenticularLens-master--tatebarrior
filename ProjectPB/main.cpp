@@ -150,6 +150,7 @@ GLuint imageL, imageR;
 const int MiddleDefault = 3420;
 //const int MiddleDefault = 2340;
 int MiddleLine = MiddleDefault;
+bool showAlignmentCenter = false; // Diagnostic overlay; OFF during measurements.
 // Preserve the manually aligned display as the origin when tracking starts.
 int trackingBaseHaba = haba_first;
 int trackingBaseMiddleLine = MiddleDefault;
@@ -175,6 +176,9 @@ GLint u_img_haba = -1;
 GLint u_img_totalShift = -1;
 GLint u_img_timeStep = -1;
 GLint u_img_manualShift = -1;
+GLint u_img_showAlignmentCenter = -1;
+GLint u_img_alignmentCenterSub = -1;
+GLint u_img_alignmentViewportHeight = -1;
 GLint u_img_correctionThreshold = -1;
 int barrierThresholdStep = 16; // 16/20 = 0.8; exact 0.05 steps.
 float barrierSlantY = 1.0f;   // 斜めバリアの縦方向係数。
@@ -195,6 +199,9 @@ GLint u_vid_haba = -1;
 GLint u_vid_totalShift = -1;
 GLint u_vid_timeStep = -1;
 GLint u_vid_manualShift = -1;
+GLint u_vid_showAlignmentCenter = -1;
+GLint u_vid_alignmentCenterSub = -1;
+GLint u_vid_alignmentViewportHeight = -1;
 GLint u_vid_correctionThreshold = -1;
 // 現在は使用しない色補正uniform。
 //GLint u_vid_rgbGain = -1;
@@ -501,6 +508,9 @@ void init(void) {
 	u_img_totalShift = glGetUniformLocation(shaderProgram, "totalShift");
 	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
 	u_img_manualShift = glGetUniformLocation(shaderProgram, "manualShift");
+	u_img_showAlignmentCenter = glGetUniformLocation(shaderProgram, "showAlignmentCenter");
+	u_img_alignmentCenterSub = glGetUniformLocation(shaderProgram, "alignmentCenterSub");
+	u_img_alignmentViewportHeight = glGetUniformLocation(shaderProgram, "alignmentViewportHeight");
 	u_img_correctionThreshold = glGetUniformLocation(shaderProgram, "correctionThreshold");
 	u_img_slantY = glGetUniformLocation(shaderProgram, "slantY");
 	/*u_img_middleLinePx = glGetUniformLocation(shaderProgram, "middleLinePx");
@@ -517,6 +527,9 @@ void init(void) {
 	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
 	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
 	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
+	u_vid_showAlignmentCenter = glGetUniformLocation(videoshaderProgram, "showAlignmentCenter");
+	u_vid_alignmentCenterSub = glGetUniformLocation(videoshaderProgram, "alignmentCenterSub");
+	u_vid_alignmentViewportHeight = glGetUniformLocation(videoshaderProgram, "alignmentViewportHeight");
 	u_vid_correctionThreshold = glGetUniformLocation(videoshaderProgram, "correctionThreshold");
 	u_vid_slantY = glGetUniformLocation(videoshaderProgram, "slantY");
 	/*u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
@@ -584,6 +597,9 @@ void renderInterleavedImage() {
 	glUniform1i(u_img_leftEnabled, eyeleft);
 	glUniform1i(u_img_rightEnabled, eyeright);
 	glUniform1f(u_img_manualShift, (float)SHIFT);
+	glUniform1i(u_img_showAlignmentCenter, showAlignmentCenter ? 1 : 0);
+	glUniform1f(u_img_alignmentCenterSub, (float)MiddleLine);
+	glUniform1f(u_img_alignmentViewportHeight, (float)IM_H);
 	glUniform1f(u_img_correctionThreshold, barrierThresholdStep / 20.0f);
 	if (u_img_slantY >= 0)
 		glUniform1f(u_img_slantY, barrierSlantY);
@@ -626,6 +642,9 @@ void renderInterleavedVideo() {
 	glUniform1i(u_vid_leftEnabled, eyeleft);
 	glUniform1i(u_vid_rightEnabled, eyeright);
 	glUniform1f(u_vid_manualShift, (float)SHIFT);
+	glUniform1i(u_vid_showAlignmentCenter, showAlignmentCenter ? 1 : 0);
+	glUniform1f(u_vid_alignmentCenterSub, (float)MiddleLine);
+	glUniform1f(u_vid_alignmentViewportHeight, (float)IM_H);
 	glUniform1f(u_vid_correctionThreshold, barrierThresholdStep / 20.0f);
 
 	// 旧方式の斜め座標W + Hに対応する係数。
@@ -936,6 +955,14 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case 'U':
 		barrierThresholdStep = std::min(20, barrierThresholdStep + 1);
 		RefreshBarrierAlignment();
+		break;
+	case 'C':
+		showAlignmentCenter = !showAlignmentCenter;
+		printf("[CENTER] %s | reference at mid-height: x=%.2f px, y=%.2f px | MiddleLine=%d\n",
+			showAlignmentCenter ? "ON (diagnostic; disable for measurement)" : "OFF",
+			(MiddleLine - barrierSlantY * (IM_H * 0.5f)) / 3.0f,
+			IM_H * 0.5f, MiddleLine);
+		glutPostRedisplay();
 		break;
 	case 'h':
 		if (ht == 0 && cali_flag == 0) {

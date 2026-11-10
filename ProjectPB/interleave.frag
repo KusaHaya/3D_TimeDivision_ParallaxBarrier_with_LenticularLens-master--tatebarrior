@@ -23,6 +23,10 @@ uniform float correctionThreshold = 0.8; // Runtime threshold; compatible defaul
 uniform int leftEnabled;
 uniform int rightEnabled;
 
+uniform int showAlignmentCenter = 0;
+uniform float alignmentCenterSub;
+uniform float alignmentViewportHeight;
+
 out vec4 color;
 
 float positiveMod(float x, float m)
@@ -58,6 +62,25 @@ bool shouldShowLeftEye(float Wsub, float Ypx)
 
     return positiveMod(value, 8.0) >= 4.0;
 }
+// Calibration reference S = MiddleLine, not an optical slit or eye boundary.
+vec4 applyAlignmentCenterGuide(vec4 inputColor)
+{
+    if (showAlignmentCenter == 0) return inputColor;
+    vec2 p = gl_FragCoord.xy;
+    float reference = 3.0 * p.x + slantY * p.y - alignmentCenterSub;
+    float normalLength = length(vec2(3.0, slantY));
+    vec4 result = inputColor;
+    if (abs(reference) <= normalLength)
+        result = vec4(1.0, 0.0, 1.0, 1.0);
+    float centerY = alignmentViewportHeight * 0.5;
+    float centerX = (alignmentCenterSub - slantY * centerY) / 3.0;
+    vec2 distanceToCenter = abs(p - vec2(centerX, centerY));
+    if ((distanceToCenter.x <= 10.0 && distanceToCenter.y <= 1.0) ||
+        (distanceToCenter.y <= 10.0 && distanceToCenter.x <= 1.0))
+        result = vec4(1.0);
+    return result;
+}
+
 void main()
 {
     vec4 leftColor = texture(leftTexture, UV);
@@ -115,5 +138,5 @@ void main()
     if ((shouldShowLeftEye(maskBase + 1.0, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.g = 0.0;
     if ((shouldShowLeftEye(maskBase + 2.0, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.b = 0.0;
 
-    color = finalColor;
+    color = applyAlignmentCenterGuide(finalColor);
 }
