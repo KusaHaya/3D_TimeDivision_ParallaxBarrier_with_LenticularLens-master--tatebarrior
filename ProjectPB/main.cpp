@@ -150,6 +150,9 @@ GLuint imageL, imageR;
 const int MiddleDefault = 3420;
 //const int MiddleDefault = 2340;
 int MiddleLine = MiddleDefault;
+// Preserve the manually aligned display as the origin when tracking starts.
+int trackingBaseHaba = haba_first;
+int trackingBaseMiddleLine = MiddleDefault;
 int mrk = 0;
 int eyeright = 1; // 右目画像の表示設定。
 int eyeleft = 1; // 左目画像の表示設定。
@@ -220,16 +223,17 @@ ExternalEyeTracker trackingClient;
 
 void UpdateTracking()
 {
+    // Manual alignment must not depend on incoming camera data.
+    if (ht == 0 && cali_flag == 0) return;
+
     std::array<float, 6> datas;
     if (!trackingClient.Poll(datas)) {
         if (ht) {
             printf("External eye tracking has no sample. Press h after receiving data.\n");
             ht = 0;
             cali_flag = 0;
-            haba = haba_first;
         }
-        headTrackShift = 0;
-        MiddleLine = MiddleDefault;
+        // Keep the last displayed alignment if tracking data is lost.
         return;
     }
     tmpX = (datas[0] + datas[3]) / 2 + PosX;
@@ -239,15 +243,15 @@ void UpdateTracking()
     if (std::abs(tmpZ - 0.3245f) < 0.02f) {
         ht = 0;
         cali_flag = 0;
-        haba = haba_first;
-        headTrackShift = 0;
-        MiddleLine = MiddleDefault;
+        // Stop tracking without resetting the last displayed alignment.
         return;
     }
     if (cali_flag == 1) {
         caliX = tmpX;
         caliY = tmpY;
         caliZ = tmpZ;
+        trackingBaseHaba = haba;
+        trackingBaseMiddleLine = MiddleLine;
         ht = 1;
         cali_flag = 0;
         printf("External OSC head-tracking: ON\n");
@@ -259,15 +263,12 @@ void UpdateTracking()
         eyeposz[eye] = 1000 * (COS * datas[index + 2] - SIN * datas[index + 1] + PosZ);
     }
     if (ht == 1) {
-        haba = haba_first + (int)((caliZ - tmpZ) * 1000 / 2.0);
+        haba = trackingBaseHaba + (int)((caliZ - tmpZ) * 1000 / 2.0);
         // 同じ奥行きでは左右対称。移動方向によって符号だけが変わる。
         delta = horizontalTrackingGain * 0.895 / (tmpZ - 0.3245) * (tmpX - caliX) * 1000 / DotSubPixel;
         headTrackShift = delta;
         const int move = delta < 0.0 ? (int)(delta - 0.5) : (int)(delta + 0.5);
-        MiddleLine = MiddleDefault - move;
-    } else {
-        headTrackShift = 0;
-        MiddleLine = MiddleDefault;
+        MiddleLine = trackingBaseMiddleLine - move;
     }
 }
 
@@ -901,20 +902,17 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		break;
 	case 'h':
-		if (ht == 0) {
-			Sleep(100);
+		if (ht == 0 && cali_flag == 0) {
 			cali_flag = 1;
 		}
 		else {
-			Sleep(100);
 			ht = 0;
-			//		haba=haba_first;
-			//		move=0;
-			printf("head-tracking: OFF\n");
-			haba = haba_first;
+			cali_flag = 0;
+			// Freeze the current alignment instead of restoring defaults.
+			printf("head-tracking: OFF (alignment preserved)\n");
 		}
-		MiddleLine = MiddleDefault;
 		glutDisplayFunc(disp);
+		glutPostRedisplay();
 		break;
 	case 'a':
 		haba = haba + 1;
