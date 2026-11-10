@@ -37,8 +37,8 @@ bool shouldShowLeftEye(float Wsub, float Ypx)
     // C++側で渡した totalShift = MiddleLine - 48 * haba を使う
     float q = (S - totalShift) / max(haba, 1.0);
 
-    // floorを使わず、連続的な幅補正にする
-    float correction = q;
+    // 動画側と同様に、C++の整数除算相当でゼロ方向へ丸める。
+    float correction = (q >= 0.0) ? floor(q) : ceil(q);
 
     float value = S
                 - correction
