@@ -19,6 +19,7 @@ uniform float middleLinePx; // 中心線のピクセル位置。
 // シェーダーの表示パラメーター。
 uniform float slantY;       // 斜めバリアの縦方向係数。
 
+uniform float correctionThreshold = 0.8; // Runtime threshold; compatible default.
 uniform int leftEnabled;
 uniform int rightEnabled;
 
@@ -29,13 +30,13 @@ float positiveMod(float x, float m)
     return mod(mod(x, m) + m, m);
 }
 
-// Advance to the next integer at fractional magnitude 0.8.
+// Advance at the configured fractional magnitude (default 0.8).
 // Apply the same threshold to negative values, then restore the sign.
 float quantizeBarrierCorrection(float q)
 {
     float magnitude = abs(q);
     float base = floor(magnitude);
-    float rounded = (magnitude >= base + 0.8) ? base + 1.0 : base;
+    float rounded = (magnitude >= base + clamp(correctionThreshold, 0.05, 1.0)) ? base + 1.0 : base;
     return (q < 0.0) ? -rounded : rounded;
 }
 
@@ -47,7 +48,7 @@ bool shouldShowLeftEye(float Wsub, float Ypx)
     // C++側で渡した totalShift = MiddleLine - 48 * haba を使う
     float q = (S - totalShift) / max(haba, 1.0);
 
-    // 小数部分の大きさが0.8以上なら、次の整数へ進める。
+    // 指定した境界値以上なら、次の整数へ進める。
     float correction = quantizeBarrierCorrection(q);
 
     float value = S

@@ -175,6 +175,8 @@ GLint u_img_haba = -1;
 GLint u_img_totalShift = -1;
 GLint u_img_timeStep = -1;
 GLint u_img_manualShift = -1;
+GLint u_img_correctionThreshold = -1;
+int barrierThresholdStep = 16; // 16/20 = 0.8; exact 0.05 steps.
 float barrierSlantY = 1.0f;   // 斜めバリアの縦方向係数。
 
 GLint u_img_slantY = -1;
@@ -193,6 +195,7 @@ GLint u_vid_haba = -1;
 GLint u_vid_totalShift = -1;
 GLint u_vid_timeStep = -1;
 GLint u_vid_manualShift = -1;
+GLint u_vid_correctionThreshold = -1;
 // 現在は使用しない色補正uniform。
 //GLint u_vid_rgbGain = -1;
 //GLint u_vid_gamma = -1;
@@ -263,7 +266,8 @@ void UpdateTracking()
         eyeposz[eye] = 1000 * (COS * datas[index + 2] - SIN * datas[index + 1] + PosZ);
     }
     if (ht == 1) {
-        haba = trackingBaseHaba + (int)((caliZ - tmpZ) * 1000 / 2.0);
+        haba = std::max(2, std::min(100000,
+            trackingBaseHaba + (int)((caliZ - tmpZ) * 1000 / 2.0)));
         // 同じ奥行きでは左右対称。移動方向によって符号だけが変わる。
         delta = horizontalTrackingGain * 0.895 / (tmpZ - 0.3245) * (tmpX - caliX) * 1000 / DotSubPixel;
         headTrackShift = delta;
@@ -497,6 +501,7 @@ void init(void) {
 	u_img_totalShift = glGetUniformLocation(shaderProgram, "totalShift");
 	u_img_timeStep = glGetUniformLocation(shaderProgram, "timeStep");
 	u_img_manualShift = glGetUniformLocation(shaderProgram, "manualShift");
+	u_img_correctionThreshold = glGetUniformLocation(shaderProgram, "correctionThreshold");
 	u_img_slantY = glGetUniformLocation(shaderProgram, "slantY");
 	/*u_img_middleLinePx = glGetUniformLocation(shaderProgram, "middleLinePx");
 	u_img_rgbGain = glGetUniformLocation(shaderProgram, "rgbGain");
@@ -512,6 +517,7 @@ void init(void) {
 	u_vid_totalShift = glGetUniformLocation(videoshaderProgram, "totalShift");
 	u_vid_timeStep = glGetUniformLocation(videoshaderProgram, "timeStep");
 	u_vid_manualShift = glGetUniformLocation(videoshaderProgram, "manualShift");
+	u_vid_correctionThreshold = glGetUniformLocation(videoshaderProgram, "correctionThreshold");
 	u_vid_slantY = glGetUniformLocation(videoshaderProgram, "slantY");
 	/*u_vid_middleLinePx = glGetUniformLocation(videoshaderProgram, "middleLinePx");
 	u_vid_rgbGain = glGetUniformLocation(videoshaderProgram, "rgbGain");
@@ -578,6 +584,7 @@ void renderInterleavedImage() {
 	glUniform1i(u_img_leftEnabled, eyeleft);
 	glUniform1i(u_img_rightEnabled, eyeright);
 	glUniform1f(u_img_manualShift, (float)SHIFT);
+	glUniform1f(u_img_correctionThreshold, barrierThresholdStep / 20.0f);
 	if (u_img_slantY >= 0)
 		glUniform1f(u_img_slantY, barrierSlantY);
 	// 色補正uniformは現在無効。
@@ -619,6 +626,7 @@ void renderInterleavedVideo() {
 	glUniform1i(u_vid_leftEnabled, eyeleft);
 	glUniform1i(u_vid_rightEnabled, eyeright);
 	glUniform1f(u_vid_manualShift, (float)SHIFT);
+	glUniform1f(u_vid_correctionThreshold, barrierThresholdStep / 20.0f);
 
 	// 旧方式の斜め座標W + Hに対応する係数。
 	if (u_vid_slantY >= 0)
@@ -831,6 +839,22 @@ void disp(void) {
 	}
 }
 
+// Refresh manual adjustments immediately, including while a frame is held.
+void RefreshBarrierAlignment()
+{
+    printf("[ALIGN] haba=%d SHIFT=%d slantY=%.3f threshold=%.2f\n",
+        haba, SHIFT, barrierSlantY, barrierThresholdStep / 20.0f);
+    glutPostRedisplay();
+}
+
+void AdjustBarrierWidth(int amount)
+{
+    const int previous = haba;
+    haba = std::max(2, std::min(100000, haba + amount));
+    if (ht) trackingBaseHaba += haba - previous;
+    RefreshBarrierAlignment();
+}
+
 static void KeyEvent(unsigned char key, int x, int y) {
 	switch (key) {
 	case 27:
@@ -899,7 +923,19 @@ static void KeyEvent(unsigned char key, int x, int y) {
         break;
 	case 'o':
 		SHIFT += 1;
-		glutDisplayFunc(disp);
+		RefreshBarrierAlignment();
+		break;
+	case 'O':
+		SHIFT -= 1;
+		RefreshBarrierAlignment();
+		break;
+	case 'u':
+		barrierThresholdStep = std::max(1, barrierThresholdStep - 1);
+		RefreshBarrierAlignment();
+		break;
+	case 'U':
+		barrierThresholdStep = std::min(20, barrierThresholdStep + 1);
+		RefreshBarrierAlignment();
 		break;
 	case 'h':
 		if (ht == 0 && cali_flag == 0) {
@@ -915,9 +951,7 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutPostRedisplay();
 		break;
 	case 'a':
-		haba = haba + 1;
-		printf("haba = %d\n", haba);
-		glutDisplayFunc(disp);
+		AdjustBarrierWidth(1);
 		break;
 	case 's':
 		VideoMode->SetSpeed(200);
@@ -1098,14 +1132,10 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		//	glutDisplayFunc(disp);
 		//	break;
 	case '[':
-		haba++;
-		//printf("%d\n", haba);
-		glutDisplayFunc(disp);
+		AdjustBarrierWidth(1);
 		break;
 	case ']':
-		haba--;
-		//printf("%d\n", haba);
-		glutDisplayFunc(disp);
+		AdjustBarrierWidth(-1);
 		break;
 	case 'k':
 		kk = (kk + 1) % 4;

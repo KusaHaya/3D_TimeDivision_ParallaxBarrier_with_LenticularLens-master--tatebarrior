@@ -24,6 +24,7 @@ uniform float slantY;       // 旧方式の W + H 相当なら 1.0
 
 
 
+uniform float correctionThreshold = 0.8; // Runtime threshold; compatible default.
 uniform int leftEnabled;
 uniform int rightEnabled;
 
@@ -41,13 +42,13 @@ float positiveMod(float x, float m)
 
 
 
-// Advance to the next integer at fractional magnitude 0.8.
+// Advance at the configured fractional magnitude (default 0.8).
 // Apply the same threshold to negative values, then restore the sign.
 float quantizeBarrierCorrection(float q)
 {
     float magnitude = abs(q);
     float base = floor(magnitude);
-    float rounded = (magnitude >= base + 0.8) ? base + 1.0 : base;
+    float rounded = (magnitude >= base + clamp(correctionThreshold, 0.05, 1.0)) ? base + 1.0 : base;
     return (q < 0.0) ? -rounded : rounded;
 }
 
