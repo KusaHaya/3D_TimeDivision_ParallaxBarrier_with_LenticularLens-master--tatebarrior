@@ -29,6 +29,16 @@ float positiveMod(float x, float m)
     return mod(mod(x, m) + m, m);
 }
 
+// Advance to the next integer at fractional magnitude 0.8.
+// Apply the same threshold to negative values, then restore the sign.
+float quantizeBarrierCorrection(float q)
+{
+    float magnitude = abs(q);
+    float base = floor(magnitude);
+    float rounded = (magnitude >= base + 0.8) ? base + 1.0 : base;
+    return (q < 0.0) ? -rounded : rounded;
+}
+
 bool shouldShowLeftEye(float Wsub, float Ypx)
 {
     // バリアと同じ斜め座標
@@ -37,8 +47,8 @@ bool shouldShowLeftEye(float Wsub, float Ypx)
     // C++側で渡した totalShift = MiddleLine - 48 * haba を使う
     float q = (S - totalShift) / max(haba, 1.0);
 
-    // 動画側と同様に、C++の整数除算相当でゼロ方向へ丸める。
-    float correction = (q >= 0.0) ? floor(q) : ceil(q);
+    // 小数部分の大きさが0.8以上なら、次の整数へ進める。
+    float correction = quantizeBarrierCorrection(q);
 
     float value = S
                 - correction
