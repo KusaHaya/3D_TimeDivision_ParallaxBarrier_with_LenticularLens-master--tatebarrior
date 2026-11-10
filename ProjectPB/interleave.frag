@@ -77,7 +77,7 @@ vec4 applyAlignmentCenterGuide(vec4 inputColor)
     vec2 distanceToCenter = abs(p - vec2(centerX, centerY));
     if ((distanceToCenter.x <= 10.0 && distanceToCenter.y <= 1.0) ||
         (distanceToCenter.y <= 10.0 && distanceToCenter.x <= 1.0))
-        result = vec4(1.0);
+        result = vec4(1.0, 0.0, 0.0, 1.0);
     return result;
 }
 
