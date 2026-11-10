@@ -41,21 +41,15 @@ float positiveMod(float x, float m)
 
 
 
-// C++の int / int に近づけるための除算
-
-// 通常 totalShift が負で W - totalShift が正なら floor だけでもほぼ同じ
-
-float cxxIntDivLike(float a, float b)
-
+// Advance to the next integer at fractional magnitude 0.8.
+// Apply the same threshold to negative values, then restore the sign.
+float quantizeBarrierCorrection(float q)
 {
-
-    float q = a / b;
-
-    return (q >= 0.0) ? floor(q) : ceil(q);
-
+    float magnitude = abs(q);
+    float base = floor(magnitude);
+    float rounded = (magnitude >= base + 0.8) ? base + 1.0 : base;
+    return (q < 0.0) ? -rounded : rounded;
 }
-
-
 
 // true なら左目、false なら右目
 
@@ -71,7 +65,7 @@ bool shouldShowLeftEye(float Wsub, float Ypx)
 
     // 旧方式の (W - totalShift) / haba
 
-    float correction = cxxIntDivLike(W - totalShift, haba);
+    float correction = quantizeBarrierCorrection((W - totalShift) / max(haba, 1.0));
 
 
 
