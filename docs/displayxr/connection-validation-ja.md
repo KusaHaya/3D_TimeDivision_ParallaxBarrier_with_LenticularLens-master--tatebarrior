@@ -4,6 +4,8 @@
 
 `displayxr-integration`ブランチに`DisplayXRPlugin/`を追加。元のProjectPB、Arduinoスケッチ、元ブランチのコードは変更していません。
 
+実機は別の実験用PCに接続されているため、このPCからの装置操作は行っていません。転送用一式と`DisplayXRPlugin/scripts/Validate-Connection.ps1`を用意し、実験用PCで同じheadless検証を再実行できるようにしています。
+
 公式runtime基準：`ac3ae19215bbcfc6aa091224d109a5b113c1c8dd`、plugin ABI major 5。Windows x64 / MSVC 19.37.32822 / Windows SDK 10.0.26100 / Releaseでビルドを確認しました。
 
 公開シンボルは`xrtPluginNegotiate`の一つだけです。DLLの依存確認では`DisplayXRClient.dll`、RealSense、OpenCV、FFmpeg、GLUTを静的importしていません。Windows標準DLLとVisual C++ runtimeを使用します。
