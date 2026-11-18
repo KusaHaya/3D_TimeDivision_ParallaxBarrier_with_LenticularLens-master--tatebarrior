@@ -1,0 +1,155 @@
+// Whole-backlight blanking comparison sketch (alternative to Arduino.txt).
+// Upload this file alone, not together with Arduino.txt.
+// PC commands, phase mapping, hold mode and standalone lighting are unchanged.
+// At each frame command: ALL OFF -> new phase TOP+BOTTOM ON -> ALL OFF.
+// Must match the actual Windows display refresh rate: 144 or 120 Hz.
+#ifndef REFRESH_RATE
+#define REFRESH_RATE 144
+#endif
+#define CONNECTION_BEGIN 10
+#define CONNECTION_END 11
+#define ENABLE_TIMEDIVISION 12
+#define DISABLE_TIMEDIVISION 13
+#define RESET_SYNC 20
+#define NEXT_TIMEDIVISION 21
+#define LIGHT_CON_0 100
+#define LIGHT_CON_7 107
+#define LIGHT_EXIT 110
+#define TIME_DIV_0 200
+#define TIME_DIV_3 203
+#define HOLD_FRAME_0 210
+#define HOLD_FRAME_3 213
+
+const int OUTPUT_PINS[8] = {9, 10, 11, 12, 4, 5, 6, 7};
+// Logical LCD phase 0,1,2,3 -> physical LED phase 0,3,2,1.
+// Restore the earlier LED direction; use the same mapping for pulses and hold.
+const int PHASE_TO_LED[4] = {0, 3, 2, 1};
+int bottomPin(int phase) { return OUTPUT_PINS[PHASE_TO_LED[phase & 3]]; }
+int topPin(int phase) { return OUTPUT_PINS[PHASE_TO_LED[phase & 3] + 4]; }
+// Existing wiring convention: phase+4 = TOP, phase = BOTTOM.
+#if REFRESH_RATE == 144
+const unsigned long DEFAULT_FULL_ON_US = 3750;
+const unsigned long ALL_OFF_US = 6250;
+#elif REFRESH_RATE == 120
+const unsigned long DEFAULT_FULL_ON_US = 4500;
+const unsigned long ALL_OFF_US = 7500;
+#else
+#error Set REFRESH_RATE to 120 or 144.
+#endif
+
+// Increase FULL_ON_US to test a later, shorter illumination window.
+// Times are relative to receipt of the PC frame command, not measured LCD response.
+#ifndef FULL_ON_US
+#define FULL_ON_US DEFAULT_FULL_ON_US
+#endif
+static_assert(FULL_ON_US > 0 && FULL_ON_US < ALL_OFF_US,
+              "FULL_ON_US must be greater than zero and less than ALL_OFF_US");
+
+bool running = false;
+bool pulseActive = false;
+bool lightsStarted = false;
+int cnt = 0;
+int previousPhase = -1;
+unsigned long frameStartUs = 0;
+
+void turnAllLightsOff() {
+  for (int i=0; i<8; ++i) digitalWrite(OUTPUT_PINS[i], LOW);
+}
+void cancelPulse() {
+  pulseActive = false;
+  lightsStarted = false;
+}
+void resetBacklight() {
+  cancelPulse();
+  turnAllLightsOff();
+  previousPhase = -1;
+  cnt = 0;
+}
+// Standalone illumination, before the PC app starts and after normal exit.
+void idleAllLightsOn() {
+  cancelPulse();
+  running = false;
+  previousPhase = -1;
+  cnt = 0;
+  for (int i=0; i<8; ++i) digitalWrite(OUTPUT_PINS[i], HIGH);
+}
+void holdPhase(int phase) {
+  cancelPulse();
+  running = false;
+  turnAllLightsOff();
+  cnt = phase & 3;
+  previousPhase = -1;
+  digitalWrite(topPin(cnt), HIGH);
+  digitalWrite(bottomPin(cnt), HIGH);
+}
+void startPhase(int phase) {
+  turnAllLightsOff();
+  cnt = phase & 3;
+  frameStartUs = micros();
+  lightsStarted = false;
+  pulseActive = true;
+  // Keep all eight outputs LOW until FULL_ON_US; no previous-phase carryover.
+}
+void updateBacklight() {
+  if (!pulseActive) return;
+  // Unsigned subtraction also handles micros() rollover.
+  const unsigned long elapsed = micros() - frameStartUs;
+  if (elapsed >= ALL_OFF_US) {
+    turnAllLightsOff();
+    pulseActive = false;
+    previousPhase = cnt;
+    return;
+  }
+  if (!lightsStarted && elapsed >= FULL_ON_US) {
+    digitalWrite(topPin(cnt), HIGH);
+    digitalWrite(bottomPin(cnt), HIGH);
+    lightsStarted = true;
+  }
+}
+void handleCommand(int command) {
+  if (command >= TIME_DIV_0 && command <= TIME_DIV_3) {
+    if (running) {
+      // If a command arrives early, the last commanded phase becomes PREV.
+      if (pulseActive) previousPhase = cnt;
+      startPhase(command - TIME_DIV_0);
+    }
+    return;
+  }
+  if (command >= HOLD_FRAME_0 && command <= HOLD_FRAME_3) {
+    holdPhase(command - HOLD_FRAME_0);
+    return;
+  }
+  if (command >= LIGHT_CON_0 && command <= LIGHT_CON_7) {
+    cancelPulse(); running = false; turnAllLightsOff();
+    previousPhase = -1;
+    digitalWrite(OUTPUT_PINS[command-LIGHT_CON_0], HIGH);
+    return;
+  }
+  switch(command) {
+    case RESET_SYNC: resetBacklight(); break;
+    case ENABLE_TIMEDIVISION: resetBacklight(); running = true; break;
+    case DISABLE_TIMEDIVISION: holdPhase(cnt); break;
+    case NEXT_TIMEDIVISION:
+      if (running) {
+        if (pulseActive) previousPhase = cnt;
+        startPhase((cnt+3)&3);
+      }
+      break;
+    case CONNECTION_BEGIN:
+      resetBacklight(); running = false; break;
+    case CONNECTION_END:
+    case LIGHT_EXIT:
+      idleAllLightsOn();
+      break;
+  }
+}
+void setup() {
+  Serial.begin(115200);
+  for(int i=0;i<8;++i) pinMode(OUTPUT_PINS[i],OUTPUT);
+  idleAllLightsOn();
+}
+void loop() {
+  updateBacklight();
+  if (Serial.available()>0) handleCommand(Serial.read());
+  updateBacklight();
+}
