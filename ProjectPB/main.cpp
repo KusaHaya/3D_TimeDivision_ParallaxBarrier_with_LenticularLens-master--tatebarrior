@@ -1084,6 +1084,14 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		flag = 0;
 		glutDisplayFunc(disp);
 		break;
+	case '8':
+		// Red left eye / blue right eye for optical timing measurements.
+		img = 11;
+		mrk = 0;
+		flag = 0;
+		glutDisplayFunc(disp);
+		glutPostRedisplay();
+		break;
 	case '0':
 		img = 1;
 		random = 0;
