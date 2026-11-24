@@ -249,6 +249,7 @@
     <ClCompile Include="KeyInput.cpp" />
     <ClCompile Include="FrameDropMonitor.cpp" />
     <ClCompile Include="AppShutdown.cpp" />
+    <ClCompile Include="DisplayDiagnostics.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="interleave.frag" />
@@ -276,6 +277,7 @@
     <ClInclude Include="KeyInput.h" />
     <ClInclude Include="FrameDropMonitor.h" />
     <ClInclude Include="AppShutdown.h" />
+    <ClInclude Include="DisplayDiagnostics.h" />
   </ItemGroup>
   <!--
     The legacy project used to add the bundled Library directory only to the

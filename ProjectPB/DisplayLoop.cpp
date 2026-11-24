@@ -11,6 +11,7 @@
 #include "TimeDivision.h"
 #include "DisplayLoop.h"
 #include "FrameDropMonitor.h"
+#include "DisplayDiagnostics.h"
 #include <GL/glut.h>
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
@@ -142,6 +143,13 @@ void disp(void) {
 	const auto beforeSwap = FrameClock::now();
 	glutSwapBuffers();
 	const auto afterSwap = FrameClock::now();
+
+	// Print the environment once, after the window has its final placement.
+	static bool diagnosticsPrinted = false;
+	if (!diagnosticsPrinted) {
+		diagnosticsPrinted = true;
+		PrintDisplayDiagnostics();
+	}
 
 	// A held frame is intentionally shown for many refreshes.
 	if (frameHoldMode) ResetFrameDropBaseline();

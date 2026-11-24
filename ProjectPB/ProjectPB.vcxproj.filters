@@ -51,6 +51,9 @@
     <ClCompile Include="DisplayLoop.cpp">
       <Filter>描画</Filter>
     </ClCompile>
+    <ClCompile Include="DisplayDiagnostics.cpp">
+      <Filter>描画</Filter>
+    </ClCompile>
     <ClCompile Include="InterleaveRenderer.cpp">
       <Filter>描画</Filter>
     </ClCompile>
@@ -111,6 +114,9 @@
       <Filter>トラッキング</Filter>
     </ClInclude>
     <ClInclude Include="DisplayLoop.h">
+      <Filter>描画</Filter>
+    </ClInclude>
+    <ClInclude Include="DisplayDiagnostics.h">
       <Filter>描画</Filter>
     </ClInclude>
     <ClInclude Include="InterleaveRenderer.h">
