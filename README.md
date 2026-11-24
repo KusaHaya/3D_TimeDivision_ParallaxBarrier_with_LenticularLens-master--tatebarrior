@@ -19,7 +19,8 @@ PythonサーバーやKinect SDKは不要です。導入手順は [NativeTracking
 | master | VS2017環境でバックライトがLEDのときのプログラム |
 | dev | 開発環境
 ## 環境
-1. VS2017  環境  
+1. Visual Studio 2026（v145 ビルドツール）  
+手順は [NativeTracking/VisualStudio2026.md](NativeTracking/VisualStudio2026.md)、ソース構成は [ProjectPB/SOURCE_LAYOUT.md](ProjectPB/SOURCE_LAYOUT.md) を参照  
 boost : version 1_73_0  
 ターゲットプラットフォーム: x64
 ## 環境構築

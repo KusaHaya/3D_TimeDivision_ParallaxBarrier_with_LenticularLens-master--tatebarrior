@@ -42,6 +42,11 @@ x64 の同梱ライブラリを使用するため、旧 nupengl/freeglut NuGet �
 5. 出力先の Start.cmd で Arduino の COM ポートを合わせて起動する。
    USB カメラ、Arduino、表示同期の確認は実機で行う。
 
+## ソースの構成
+
+表示アプリのソースは機能ごとに分かれています。どのファイルに何があるかは [ProjectPB/SOURCE_LAYOUT.md](../ProjectPB/SOURCE_LAYOUT.md) を参照。
+新しい .cpp は ProjectPB.vcxproj に登録済みなので、追加の設定は不要です。
+
 ## 変更と検証の範囲
 
 v145 と Windows SDK の既定選択を維持し、古い VC/SDK パスの上書き、

@@ -76,6 +76,7 @@ int ppm_reader(char *filename, unsigned char *pimage)
 		exit(1);
 	}
 	fclose(fp);
+	return 0; // 戻り値は未使用。MSVCのC4716（戻り値なし）を避ける。
 }
 
 void LoadStillImageTextures()
