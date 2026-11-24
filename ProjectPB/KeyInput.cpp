@@ -13,6 +13,9 @@
 #include "DisplayLoop.h"
 #include "KeyInput.h"
 #include "AppShutdown.h"
+#include "Settings.h"
+#include "FrameDropMonitor.h"
+#include "StillImage.h"
 #include <GL/glut.h>
 
 // Refresh manual adjustments immediately, including while a frame is held.
@@ -31,26 +34,18 @@ void AdjustBarrierWidth(int amount)
     RefreshBarrierAlignment();
 }
 
+static void HandleKey(unsigned char key);
+
 static void KeyEvent(unsigned char key, int x, int y) {
+	HandleKey(key);
+	UpdateStatusTitle();
+}
+
+static void HandleKey(unsigned char key) {
 	switch (key) {
 	case 27:
 		ShutdownApp();
 		exit(0);
-		break;
-	case 'Z':
-		anmode = 0;
-		flag = 0;
-		glutDisplayFunc(disp);
-		break;
-	case 'A':
-		anmode = 1;
-		flag = 0;
-		glutDisplayFunc(disp);
-		break;
-	case 'Q':
-		anmode = 2;
-		flag = 0;
-		glutDisplayFunc(disp);
 		break;
 	case 'q':
 		SelectFrameWhileHeld(0);
@@ -134,89 +129,23 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case 's':
 		VideoMode->SetSpeed(200);
 		break;
-	case'z':
-		if (random == 0) {
-			mode = 0;
-			printf("mode : PP\n");
-		}
-		else if (random == 1) {
-			mode = 0;
-			printf("mode : PP\n");
-		}
-		else if (random == 2) {
-			mode = 2;
-		}
-		else {
-			mode = 1;
-			printf("mode : SP\n");
-		}
-		glutDisplayFunc(disp);
-		break;
-	case'x':
-		if (random == 0) {
-			mode = 1;
-			printf("mode : SP\n");
-		}
-		else if (random == 1) {
-			mode = 2;
-			printf("mode : SS\n");
-		}
-		else if (random == 2) {
-			mode = 0;
-			printf("mode : PP\n");
-		}
-		else {
-			mode = 2;
-			printf("mode : SS\n");
-		}
-		glutDisplayFunc(disp);
-		break;
-	case'c':
-		if (random == 0) {
-			mode = 2;
-			printf("mode : SS\n");
-		}
-		else if (random == 1) {
-			mode = 1;
-			printf("mode : SP\n");
-		}
-		else if (random == 2) {
-			mode = 1;
-			printf("mode : SP\n");
-		}
-		else {
-			mode = 0;
-			printf("mode : PP\n");
-		}
-		glutDisplayFunc(disp);
-		break;
-	case 'L':
-		LiverMode = true;
-		break;
-	case 'l':
-		LiverMode = false;
-		break;
 	case '1':
 		img = 2;
-		random = 0;
 		flag = 0;
 		glutDisplayFunc(disp);
 		break;
 	case '2':
 		img = 3;
-		random = 1;
 		flag = 0;
 		glutDisplayFunc(disp);
 		break;
 	case '3':
 		img = 4;
-		random = 2;
 		flag = 0;
 		glutDisplayFunc(disp);
 		break;
 	case '4':
 		img = 5;
-		random = 3;
 		flag = 0;
 		glutDisplayFunc(disp);
 		break;
@@ -245,7 +174,6 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		break;
 	case '0':
 		img = 1;
-		random = 0;
 		flag = 0;
 		glutDisplayFunc(disp);
 		break;
@@ -295,28 +223,14 @@ static void KeyEvent(unsigned char key, int x, int y) {
 		glutDisplayFunc(disp);
 		glutPostRedisplay();
 		break;
-	case 'S':
-		VideoMode->Mode3D = !VideoMode->Mode3D;
-		glutDisplayFunc(disp);
+	case 'P':
+		SaveSettings();
 		break;
-		/*case 'p':
-			VideoMode->printflag = false;
-			glutDisplayFunc(disp);
-			break;*/
-	case 'R':
-		ReserveLR = !ReserveLR;
-		if (ReserveLR) printf("RL\n");
-		else printf("LR\n");
-		glutDisplayFunc(disp);
+	case '?':
+	case '/':
+		PrintKeyHelp();
+		PrintStatus();
 		break;
-		//case 'f':
-		//	zsft += 5;
-		//	glutDisplayFunc(disp);
-		//	break;
-		//case 'F':
-		//	zsft -= 5;
-		//	glutDisplayFunc(disp);
-		//	break;
 	case '[':
 		AdjustBarrierWidth(1);
 		break;
@@ -329,15 +243,6 @@ static void KeyEvent(unsigned char key, int x, int y) {
 	case 'K':
 		printf("z: %f, haba: %d\n", tmpZ, haba);
 		break;
-	case'd':
-		alphax += 0.1;
-		if (alphax > 1.1)
-			alphax = 0;
-		break;
-	case'D':
-		habat += 1;
-		break;
-		// キーボードイベントを動画処理へ渡す。
 	case 'f':
 		barrierSlantY -= 0.02f;
 		if (barrierSlantY < 0.1f) barrierSlantY = 0.1f;
@@ -365,21 +270,55 @@ static void KeyUp(unsigned
 		break;
 	}
 }
-static void KeySpecialEvent(int key, int x, int y) {
-	if (key == GLUT_KEY_LEFT) {
-		theta = (int)(theta + 1) % 360;
-		glutDisplayFunc(disp);
-	}
-	if (key == GLUT_KEY_RIGHT) {
-		theta = (int)(theta - 1 + 360) % 360;
-		glutDisplayFunc(disp);
-	}
+void PrintKeyHelp()
+{
+	printf(
+		"---- ProjectPB keys ------------------------------------------------------\n"
+		" ESC        quit (backlight returns to all-on)\n"
+		" 0-7, 8     still image (8 = red left / blue right timing pair)\n"
+		" m / M      video / back to still image (restarts time-division at kk=0)\n"
+		" t          hold the visible phase; again to resume\n"
+		" q w e r    while held: show phase 0 1 2 3\n"
+		" k          advance the display phase by one\n"
+		" [ ] (a)    barrier width haba -1 / +1 ('a' = '[' kept for habit)\n"
+		" o / O      phase shift SHIFT +1 / -1\n"
+		" f / F      slant slantY -0.02 / +0.02\n"
+		" u / U      correction threshold -0.05 / +0.05\n"
+		" C          alignment centre guide on/off (turn off for measurements)\n"
+		" v / V      left eye on / off      b / B   right eye on / off\n"
+		" h          head tracking: set reference and start / stop\n"
+		" j / J      horizontal tracking gain -0.1 / +0.1\n"
+		" K          print tracking distance and haba\n"
+		" s (hold)   video fast-forward while pressed\n"
+		" P          save the alignment to ProjectPB_settings.ini\n"
+		" ? or /     this list and the current status\n"
+		"--------------------------------------------------------------------------\n");
+}
 
+void PrintStatus()
+{
+	printf("[STATUS] %s kk=%d | %s | tracking %s | haba=%d middle_line=%d shift=%d slant_y=%.3f threshold=%.2f gain=%.2f | eyes L%s R%s | guide %s | dropped total %llu\n",
+		frameHoldMode ? "HOLD" : "RUN", displayedKk,
+		mrk == 1 ? "video" : "still",
+		ht == 1 ? "ON" : "OFF",
+		haba, MiddleLine, SHIFT, barrierSlantY, barrierThresholdStep / 20.0f, horizontalTrackingGain,
+		eyeleft ? "on" : "off", eyeright ? "on" : "off",
+		showAlignmentCenter ? "ON" : "off",
+		TotalDroppedFrames());
+	if (mrk != 1) printf("[STATUS] still image %d\n", CurrentStillImage());
+}
+
+void UpdateStatusTitle()
+{
+	char title[160];
+	sprintf(title, "ProjectPB | %s | %s | track %s | haba %d | shift %d | slant %.2f | thr %.2f",
+		frameHoldMode ? "HOLD" : "RUN", mrk == 1 ? "video" : "still",
+		ht == 1 ? "ON" : "OFF", haba, SHIFT, barrierSlantY, barrierThresholdStep / 20.0f);
+	glutSetWindowTitle(title);
 }
 
 void RegisterKeyHandlers()
 {
 	glutKeyboardFunc(KeyEvent);
 	glutKeyboardUpFunc(KeyUp);
-	glutSpecialFunc(KeySpecialEvent);
 }

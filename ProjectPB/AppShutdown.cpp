@@ -10,6 +10,7 @@
 #include "StillImage.h"
 #include "DisplayLoop.h"
 #include "AppShutdown.h"
+#include "RenderPriority.h"
 
 void ShutdownApp()
 {
@@ -30,6 +31,7 @@ void ShutdownApp()
 	StopHeadTracking();
 	// GLコンテキストがある間にテクスチャを解放する。
 	ReleaseStillImages();
+	RestoreRenderThreadPriority();
 	timeEndPeriod(1);
 	printf("ProjectPB: shut down.\n");
 }

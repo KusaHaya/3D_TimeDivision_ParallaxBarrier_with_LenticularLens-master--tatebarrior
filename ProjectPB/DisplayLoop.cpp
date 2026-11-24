@@ -32,13 +32,11 @@ bool init(void) {
 	else {
 		printf("[WARN] V-Sync extension not available.\n");
 	}
-	anmode = 0;
 
 	if (!InitInterleaveRenderer()) return false;
 	PreloadStillImages();
 	ht = 0;
 	printf("head-tracking: OFF\n");
-	printf("mode : SS\n");
 	printf("haba = %d\n", haba);
 	InitFrameDropMonitor();
 	return true;

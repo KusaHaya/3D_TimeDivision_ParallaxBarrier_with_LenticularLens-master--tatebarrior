@@ -13,6 +13,8 @@
 //   KeyInput.*                : キーボード操作
 //   FrameDropMonitor.*        : コマ落ち検出
 //   AppShutdown.*             : 終了処理
+//   Settings.*                : 調整値の保存と読み込み
+//   RenderPriority.*          : 描画スレッドの優先度
 
 #include <cmath>
 #include <cstdlib>
@@ -28,6 +30,8 @@
 #include "DisplayLoop.h"
 #include "KeyInput.h"
 #include "AppShutdown.h"
+#include "Settings.h"
+#include "RenderPriority.h"
 #include <GL/freeglut.h>
 
 #pragma comment(lib, "winmm.lib")
@@ -42,14 +46,17 @@ extern "C" FILE * __cdecl __iob_func(void)
 
 
 int main(int argc, char ** argv) {
+    // Saved alignment first; an explicit environment variable below still wins.
+    LoadSettings();
     if (const char* gainText = std::getenv("PROJECTPB_HORIZONTAL_GAIN")) {
         char* end = nullptr;
         const float gain = std::strtof(gainText, &end);
         if (end != gainText && *end == '\0' && std::isfinite(gain) && gain >= 0.1f && gain <= 10.0f)
             horizontalTrackingGain = gain;
-        else std::cerr << "Invalid PROJECTPB_HORIZONTAL_GAIN; using 0.7.\n";
+        else std::cerr << "Invalid PROJECTPB_HORIZONTAL_GAIN; keeping " << horizontalTrackingGain << ".\n";
     }
     printf("Horizontal tracking gain: %.2f (j decreases, Shift+j increases)\n", horizontalTrackingGain);
+    PrintSettings("startup");
 
 	MMRESULT timerResult = timeBeginPeriod(1);
 	if (timerResult != TIMERR_NOERROR) {
@@ -86,6 +93,10 @@ int main(int argc, char ** argv) {
 		ShutdownApp();
 		return 1;
 	}
+	// After init: shader compilation and image loading need no priority boost.
+	RaiseRenderThreadPriority();
+	PrintKeyHelp();
+	UpdateStatusTitle();
     StartHeadTracking();
 	glutDisplayFunc(disp);
 	RegisterKeyHandlers();

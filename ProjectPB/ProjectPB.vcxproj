@@ -250,6 +250,8 @@
     <ClCompile Include="FrameDropMonitor.cpp" />
     <ClCompile Include="AppShutdown.cpp" />
     <ClCompile Include="DisplayDiagnostics.cpp" />
+    <ClCompile Include="Settings.cpp" />
+    <ClCompile Include="RenderPriority.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="interleave.frag" />
@@ -278,6 +280,8 @@
     <ClInclude Include="FrameDropMonitor.h" />
     <ClInclude Include="AppShutdown.h" />
     <ClInclude Include="DisplayDiagnostics.h" />
+    <ClInclude Include="Settings.h" />
+    <ClInclude Include="RenderPriority.h" />
   </ItemGroup>
   <!--
     The legacy project used to add the bundled Library directory only to the

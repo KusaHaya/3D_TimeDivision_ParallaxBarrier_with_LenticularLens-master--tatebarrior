@@ -15,7 +15,9 @@
 | シェーダー | `ShaderLoader.h/.cpp`、`InterleaveRenderer.h/.cpp`、`interleave.frag` | シェーダーのコンパイル（失敗したら起動を止める）、静止画・動画共通の合成描画 |
 | 1フレームの流れ | `DisplayLoop.h/.cpp` | `init()`、`disp()`（描画→swap→Arduino送信→`kk` を進める）、性能ログ |
 | 実行環境の表示 | `DisplayDiagnostics.h/.cpp` | 起動直後に `[ENV]` でビルド構成・作業フォルダ・GPU・描画領域の位置と大きさ・DPIを表示。描画領域が(0,0)・1920x1080・100%でなければ警告 |
-| キー入力 | `KeyInput.h/.cpp` | すべてのキー操作 |
+| 調整値の保存 | `Settings.h/.cpp` | `ProjectPB_settings.ini` への保存（P）と起動時の読み込み。範囲外・不正な値は警告して無視 |
+| 描画スレッドの優先度 | `RenderPriority.h/.cpp` | MMCSS "Games" で優先度を上げる。`PROJECTPB_RENDER_PRIORITY=normal` で無効にして比較できる |
+| キー入力 | `KeyInput.h/.cpp` | すべてのキー操作、`?` でキー一覧と状態表示、ウィンドウのタイトルに状態表示 |
 | 動画 | `DrawVideo.*`、`Media.*`、`Texture.*`、`Timer.*` | FFmpegでの動画デコード（変更なし） |
 | 目の位置の受信 | `ExternalEyeTracker.*`、`OscEyePacket.h` | EyeTracker-RSからのOSC受信（変更なし） |
 

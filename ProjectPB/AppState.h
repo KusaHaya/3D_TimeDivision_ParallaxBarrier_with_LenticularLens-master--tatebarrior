@@ -33,6 +33,7 @@ extern float headTrackShift;
 extern float caliX, caliY, caliZ;
 extern float tmpX, tmpY, tmpZ;
 extern float PosX, PosY, PosZ;
+extern double cameraTiltSin, cameraTiltCos; // カメラの設置角（初期値は AppConfig.h の SIN / COS）
 extern int trackingBaseHaba;
 extern int trackingBaseMiddleLine;
 
@@ -43,16 +44,5 @@ extern int qq;
 extern int mrk;                 // 1:動画, 0:静止画
 extern int eyeright;            // 右目画像の表示設定。
 extern int eyeleft;             // 左目画像の表示設定。
-extern bool ReserveLR;
-extern float videoscale;
 extern bool VideoSwitch;
 extern GLuint imageL, imageR;   // 静止画表示用の左右テクスチャ。
-
-// --- 旧機能の名残（現在の描画には影響しない） ---
-extern int mode;
-extern char anmode;
-extern int random;
-extern bool LiverMode;
-extern float theta;
-extern float alphax;
-extern int habat;

@@ -27,8 +27,8 @@ void UpdateTracking()
         return;
     }
     tmpX = (datas[0] + datas[3]) / 2 + PosX;
-    tmpY = COS * (datas[1] + datas[4]) / 2 + SIN * (datas[2] + datas[5]) / 2 + PosY;
-    tmpZ = COS * (datas[2] + datas[5]) / 2 - SIN * (datas[1] + datas[4]) / 2 + PosZ;
+    tmpY = cameraTiltCos * (datas[1] + datas[4]) / 2 + cameraTiltSin * (datas[2] + datas[5]) / 2 + PosY;
+    tmpZ = cameraTiltCos * (datas[2] + datas[5]) / 2 - cameraTiltSin * (datas[1] + datas[4]) / 2 + PosZ;
     // Guard the existing barrier equation's singularity before calibration.
     if (std::abs(tmpZ - 0.3245f) < 0.02f) {
         ht = 0;
@@ -49,8 +49,8 @@ void UpdateTracking()
     for (int eye = 0; eye < 2; ++eye) {
         const int index = (1 - eye) * 3;
         eyeposx[eye] = 1000 * (datas[index] + PosX);
-        eyeposy[eye] = 1000 * (COS * datas[index + 1] + SIN * datas[index + 2] + PosY);
-        eyeposz[eye] = 1000 * (COS * datas[index + 2] - SIN * datas[index + 1] + PosZ);
+        eyeposy[eye] = 1000 * (cameraTiltCos * datas[index + 1] + cameraTiltSin * datas[index + 2] + PosY);
+        eyeposz[eye] = 1000 * (cameraTiltCos * datas[index + 2] - cameraTiltSin * datas[index + 1] + PosZ);
     }
     if (ht == 1) {
         haba = std::max(2, std::min(100000,

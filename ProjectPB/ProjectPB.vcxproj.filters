@@ -33,6 +33,9 @@
     <ClCompile Include="AppShutdown.cpp">
       <Filter>アプリ本体</Filter>
     </ClCompile>
+    <ClCompile Include="Settings.cpp">
+      <Filter>アプリ本体</Filter>
+    </ClCompile>
     <ClCompile Include="ArduinoSerial.cpp">
       <Filter>時分割・Arduino</Filter>
     </ClCompile>
@@ -40,6 +43,9 @@
       <Filter>時分割・Arduino</Filter>
     </ClCompile>
     <ClCompile Include="FrameDropMonitor.cpp">
+      <Filter>時分割・Arduino</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPriority.cpp">
       <Filter>時分割・Arduino</Filter>
     </ClCompile>
     <ClCompile Include="HeadTracking.cpp">
@@ -89,6 +95,9 @@
     <ClInclude Include="AppShutdown.h">
       <Filter>アプリ本体</Filter>
     </ClInclude>
+    <ClInclude Include="Settings.h">
+      <Filter>アプリ本体</Filter>
+    </ClInclude>
     <ClInclude Include="ArduinoSerial.h">
       <Filter>時分割・Arduino</Filter>
     </ClInclude>
@@ -96,6 +105,9 @@
       <Filter>時分割・Arduino</Filter>
     </ClInclude>
     <ClInclude Include="FrameDropMonitor.h">
+      <Filter>時分割・Arduino</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPriority.h">
       <Filter>時分割・Arduino</Filter>
     </ClInclude>
     <ClInclude Include="HeadTracking.h">

@@ -368,3 +368,7 @@ NativeTracking/models/
 
 # Machine-local native dependency paths
 /ProjectPB/NativeBuild.local.props
+
+# Per-machine alignment saved by ProjectPB (P key)
+ProjectPB_settings.ini
+ProjectPB_settings.ini.tmp

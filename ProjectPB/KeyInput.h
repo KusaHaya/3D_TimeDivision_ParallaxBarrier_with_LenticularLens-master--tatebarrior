@@ -3,3 +3,8 @@
 
 // GLUTへキーボードのコールバックを登録する。
 void RegisterKeyHandlers();
+// キー一覧と今の状態を表示する（? キー、起動時）。
+void PrintKeyHelp();
+void PrintStatus();
+// ウィンドウのタイトルに今の状態を表示する（キー操作のたびに更新）。
+void UpdateStatusTitle();
