@@ -1,23 +1,19 @@
 #version 330 core
 
+// 静止画（左右2枚のテクスチャ）と動画（左右分割の1枚）で共通の合成シェーダー。
+// 以前の interleave.frag と sbs_interleave.frag を1つにまとめた。
+
 in vec2 UV;
 
-// シェーダーの表示パラメーター。
-uniform sampler2D leftTexture;
-uniform sampler2D rightTexture;
+uniform sampler2D leftTexture;  // 静止画: 左目画像 / 動画: 左右分割テクスチャ
+uniform sampler2D rightTexture; // 静止画: 右目画像 / 動画: 未使用
+uniform int   sideBySide = 0;   // 1: leftTexture の左半分を左目、右半分を右目として使う
 
 uniform float haba;         // バリア幅（サブピクセル単位）。
-uniform float totalShift;   // 追跡位置から計算した表示位相の補正。
-uniform int   timeStep;     // 時分割位相（0～3）。
-uniform float manualShift;  // 手動の位相補正。
-uniform vec3  rgbGain;      // RGBごとの明るさ補正。
-uniform float gammaValue;   // ガンマ補正値。
-uniform float crosstalk;    // クロストーク補正係数。
-uniform int   enableColorCorrection; // 1で色補正を有効にする。
-uniform float middleLinePx; // 中心線のピクセル位置。
-
-// シェーダーの表示パラメーター。
-uniform float slantY;       // 斜めバリアの縦方向係数。
+uniform float totalShift;   // C++側で MiddleLine - 48 * haba を渡す。
+uniform int   timeStep;     // 時分割位相（0～3）。旧方式の kk。
+uniform float manualShift;  // 手動の位相補正。旧方式の SHIFT。
+uniform float slantY;       // 斜めバリアの縦方向係数。旧方式の W + H 相当なら 1.0。
 
 uniform float correctionThreshold = 0.8; // Runtime threshold; compatible default.
 uniform int leftEnabled;
@@ -44,24 +40,25 @@ float quantizeBarrierCorrection(float q)
     return (q < 0.0) ? -rounded : rounded;
 }
 
+// true なら左目、false なら右目
 bool shouldShowLeftEye(float Wsub, float Ypx)
 {
-    // バリアと同じ斜め座標
+    // バリアと同じ斜め座標（旧方式の W + H に相当）
     float S = Wsub + slantY * Ypx;
 
-    // C++側で渡した totalShift = MiddleLine - 48 * haba を使う
-    float q = (S - totalShift) / max(haba, 1.0);
+    // 旧方式の (W - totalShift) / haba。指定した境界値以上なら次の整数へ進める。
+    float correction = quantizeBarrierCorrection((S - totalShift) / max(haba, 1.0));
 
-    // 指定した境界値以上なら、次の整数へ進める。
-    float correction = quantizeBarrierCorrection(q);
-
+    // 旧方式の ((W + H) - correction) + 2 * kk + SHIFT
     float value = S
                 - correction
                 + 2.0 * float(timeStep)
                 + manualShift;
 
+    // 旧方式では %8 < 4 がステンシル1（右目）だったので、>= 4 を左目とする。
     return positiveMod(value, 8.0) >= 4.0;
 }
+
 // Calibration reference S = MiddleLine, not an optical slit or eye boundary.
 vec4 applyAlignmentCenterGuide(vec4 inputColor)
 {
@@ -83,60 +80,36 @@ vec4 applyAlignmentCenterGuide(vec4 inputColor)
 
 void main()
 {
-    vec4 leftColor = texture(leftTexture, UV);
-    vec4 rightColor = texture(rightTexture, UV);
+    vec4 leftColor;
+    vec4 rightColor;
+    if (sideBySide != 0) {
+        leftColor  = texture(leftTexture, vec2(UV.x * 0.5,       UV.y));
+        rightColor = texture(leftTexture, vec2(UV.x * 0.5 + 0.5, UV.y));
+    }
+    else {
+        leftColor  = texture(leftTexture, UV);
+        rightColor = texture(rightTexture, UV);
+    }
 
     vec4 finalColor;
     finalColor.a = 1.0;
 
-    float WsubBase = floor(gl_FragCoord.x) * 3.0;
-    float Ypx      = floor(gl_FragCoord.y);
+    float Wsub = floor(gl_FragCoord.x) * 3.0;
+    float Ypx  = floor(gl_FragCoord.y);
 
-    float appliedCrosstalk = (enableColorCorrection != 0) ? crosstalk : 0.0;
-    vec3 appliedGain = (enableColorCorrection != 0) ? rgbGain : vec3(1.0);
-    float appliedGamma = (enableColorCorrection != 0) ? gammaValue : 1.0;
-    float leakSafe = max(1.0 - appliedCrosstalk, 0.0001);
+    // RGBのサブピクセルごとに左右どちらを表示するかを決める。
+    bool rLeft = shouldShowLeftEye(Wsub + 0.0, Ypx);
+    bool gLeft = shouldShowLeftEye(Wsub + 1.0, Ypx);
+    bool bLeft = shouldShowLeftEye(Wsub + 2.0, Ypx);
 
-    float rPrimary, rLeak;
-    if (shouldShowLeftEye(WsubBase + 0.0, Ypx)) {
-        rPrimary = leftColor.r;
-        rLeak    = rightColor.r;
-    } else {
-        rPrimary = rightColor.r;
-        rLeak    = leftColor.r;
-    }
-    finalColor.r = clamp((rPrimary - appliedCrosstalk * rLeak) / leakSafe, 0.0, 1.0);
-
-    float gPrimary, gLeak;
-    if (shouldShowLeftEye(WsubBase + 1.0, Ypx)) {
-        gPrimary = leftColor.g;
-        gLeak    = rightColor.g;
-    } else {
-        gPrimary = rightColor.g;
-        gLeak    = leftColor.g;
-    }
-    finalColor.g = clamp((gPrimary - appliedCrosstalk * gLeak) / leakSafe, 0.0, 1.0);
-
-    float bPrimary, bLeak;
-    if (shouldShowLeftEye(WsubBase + 2.0, Ypx)) {
-        bPrimary = leftColor.b;
-        bLeak    = rightColor.b;
-    } else {
-        bPrimary = rightColor.b;
-        bLeak    = leftColor.b;
-    }
-    finalColor.b = clamp((bPrimary - appliedCrosstalk * bLeak) / leakSafe, 0.0, 1.0);
-
-    finalColor.rgb = clamp(finalColor.rgb * appliedGain, 0.0, 1.0);
-    finalColor.rgb = pow(finalColor.rgb, vec3(1.0 / max(appliedGamma, 0.01)));
-
+    finalColor.r = rLeft ? leftColor.r : rightColor.r;
+    finalColor.g = gLeft ? leftColor.g : rightColor.g;
+    finalColor.b = bLeft ? leftColor.b : rightColor.b;
 
     // Apply the eye mask to the final output so OFF is exactly black.
-    float maskBase = floor(gl_FragCoord.x) * 3.0;
-    float maskY = floor(gl_FragCoord.y);
-    if ((shouldShowLeftEye(maskBase, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.r = 0.0;
-    if ((shouldShowLeftEye(maskBase + 1.0, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.g = 0.0;
-    if ((shouldShowLeftEye(maskBase + 2.0, maskY) ? leftEnabled : rightEnabled) == 0) finalColor.b = 0.0;
+    if ((rLeft ? leftEnabled : rightEnabled) == 0) finalColor.r = 0.0;
+    if ((gLeft ? leftEnabled : rightEnabled) == 0) finalColor.g = 0.0;
+    if ((bLeft ? leftEnabled : rightEnabled) == 0) finalColor.b = 0.0;
 
     color = applyAlignmentCenterGuide(finalColor);
 }

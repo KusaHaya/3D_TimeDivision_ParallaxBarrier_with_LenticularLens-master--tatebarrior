@@ -12,6 +12,7 @@
 #include "TimeDivision.h"
 #include "DisplayLoop.h"
 #include "KeyInput.h"
+#include "AppShutdown.h"
 #include <GL/glut.h>
 
 // Refresh manual adjustments immediately, including while a frame is held.
@@ -33,13 +34,7 @@ void AdjustBarrierWidth(int amount)
 static void KeyEvent(unsigned char key, int x, int y) {
 	switch (key) {
 	case 27:
-
-		while (!VideoMode->video_flag) VideoMode->dispose();
-		if (IsArduinoOpen()) {
-			SendArduinoCommand(DISABLE_TIMEDIVISION);
-			SendArduinoCommand(LIGHT_EXIT);
-		}
-		timeEndPeriod(1);
+		ShutdownApp();
 		exit(0);
 		break;
 	case 'Z':

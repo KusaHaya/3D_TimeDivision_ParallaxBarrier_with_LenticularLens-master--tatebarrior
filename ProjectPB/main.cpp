@@ -11,6 +11,8 @@
 //   InterleaveRenderer.*      : 左右画像の合成描画
 //   DisplayLoop.*             : 表示コールバック（1フレームの流れ）
 //   KeyInput.*                : キーボード操作
+//   FrameDropMonitor.*        : コマ落ち検出
+//   AppShutdown.*             : 終了処理
 
 #include <cmath>
 #include <cstdlib>
@@ -25,7 +27,8 @@
 #include "HeadTracking.h"
 #include "DisplayLoop.h"
 #include "KeyInput.h"
-#include <GL/glut.h>
+#include "AppShutdown.h"
+#include <GL/freeglut.h>
 
 #pragma comment(lib, "winmm.lib")
 
@@ -69,24 +72,26 @@ int main(int argc, char ** argv) {
 	glutInitWindowPosition(0, 0);
 	glutInitWindowSize(IM_W, IM_H);
 
-	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH | GLUT_STENCIL | GLUT_STEREO);
+	// Only a full-screen quad is drawn: no depth, stencil or quad-buffer stereo.
+	glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE);
 	glutCreateWindow("Test");
+	// Closing the window returns from glutMainLoop() and runs ShutdownApp().
+	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_GLUTMAINLOOP_RETURNS);
+	glutCloseFunc(ShutdownApp);
 
 	VideoMode = std::unique_ptr<vmlab::DrawVideo>(new vmlab::DrawVideo);
 	VideoSwitch = false;
 
-	init();
+	if (!init()) {
+		ShutdownApp();
+		return 1;
+	}
     StartHeadTracking();
 	glutDisplayFunc(disp);
 	RegisterKeyHandlers();
 	//glutIdleFunc(disp);
 
 	glutMainLoop();
-	StopHeadTracking();
-	timeEndPeriod(1);
-
-	glDeleteTextures(1, &imageL);
-	glDeleteTextures(1, &imageR);
-
+	ShutdownApp();
 	return 0;
 }

@@ -15,15 +15,7 @@ float zsft = 0;
 float alphax = 1.0;
 int habat = 0;
 
-float crosstalkFactor = 0.15f; // クロストーク補正係数（15%）。
 float headTrackShift = 0.0f; // 頭部追跡による横方向の補正量（サブピクセル単位）。
-
-// 色補正の設定値。
-float colorGainR = 1.00f;
-float colorGainG = 1.00f;
-float colorGainB = 1.00f;
-float colorGamma = 1.00f;
-bool colorCorrectionEnabled = true;
 
 int running = 1; // 0:test mode on, 1:off(time-division running)
 int ht = 0; // head-tracking mode 0:OFF, 1:ON

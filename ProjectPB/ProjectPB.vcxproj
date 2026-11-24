@@ -236,9 +236,6 @@
 
     </ClCompile>
     <ClCompile Include="Media.cpp" />
-    <None Include="sbs_interleave.frag">
-      <FileType>CppCode</FileType>
-    </None>
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Timer.cpp" />
     <ClCompile Include="AppState.cpp" />
@@ -251,6 +248,7 @@
     <ClCompile Include="StillImage.cpp" />
     <ClCompile Include="KeyInput.cpp" />
     <ClCompile Include="FrameDropMonitor.cpp" />
+    <ClCompile Include="AppShutdown.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="interleave.frag" />
@@ -277,6 +275,7 @@
     <ClInclude Include="StillImage.h" />
     <ClInclude Include="KeyInput.h" />
     <ClInclude Include="FrameDropMonitor.h" />
+    <ClInclude Include="AppShutdown.h" />
   </ItemGroup>
   <!--
     The legacy project used to add the bundled Library directory only to the
@@ -297,7 +296,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="CopyDisplayRuntimeAssets" AfterTargets="Build">
     <ItemGroup>
-      <DisplayFiles Include="$(MSBuildProjectDirectory)\passthrough.vert;$(MSBuildProjectDirectory)\interleave.frag;$(MSBuildProjectDirectory)\sbs_interleave.frag;$(MSBuildProjectDirectory)\Start.cmd" />
+      <DisplayFiles Include="$(MSBuildProjectDirectory)\passthrough.vert;$(MSBuildProjectDirectory)\interleave.frag;$(MSBuildProjectDirectory)\Start.cmd" />
       <DisplayImages Include="$(MSBuildProjectDirectory)\images\**\*" />
       <DisplayMedia Include="$(MSBuildProjectDirectory)\media\**\*" />
     </ItemGroup>

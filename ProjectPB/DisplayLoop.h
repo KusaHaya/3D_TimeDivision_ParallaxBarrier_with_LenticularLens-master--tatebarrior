@@ -6,5 +6,6 @@
 
 extern std::unique_ptr<vmlab::DrawVideo> VideoMode;
 
-void init(void);
+// OpenGLとシェーダーを準備する。失敗したら false。
+bool init(void);
 void disp(void);

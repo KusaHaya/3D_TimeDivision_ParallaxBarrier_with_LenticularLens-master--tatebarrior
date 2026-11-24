@@ -15,8 +15,11 @@
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
 
-void init(void) {
-	glewInit();
+bool init(void) {
+	if (glewInit() != GLEW_OK) {
+		printf("[FATAL] GLEW could not be initialised.\n");
+		return false;
+	}
 	typedef BOOL(WINAPI* PFNWGLSWAPINTERVALEXTPROC)(int);
 
 	PFNWGLSWAPINTERVALEXTPROC pWglSwapIntervalEXT =
@@ -30,14 +33,14 @@ void init(void) {
 	}
 	anmode = 0;
 
-	glGenTextures(1, &imageL);
-	glGenTextures(1, &imageR);
-	InitInterleaveRenderer();
+	if (!InitInterleaveRenderer()) return false;
+	PreloadStillImages();
 	ht = 0;
 	printf("head-tracking: OFF\n");
 	printf("mode : SS\n");
 	printf("haba = %d\n", haba);
 	InitFrameDropMonitor();
+	return true;
 }
 
 // Aggregate timings only; never print once per frame.
@@ -87,7 +90,6 @@ void ReportFrameTiming(FrameClock::time_point begin, FrameClock::time_point befo
 void disp(void) {
     const auto frameBegin = FrameClock::now();
     UpdateTracking();
-	int i, e;
 
 	// V-Sync is the frame clock. Advance video exactly once for the frame that
 	// will now be presented instead of using an independent 120 Hz timer.
@@ -95,48 +97,38 @@ void disp(void) {
 		VideoMode->Update(0);
 	}
 
+	// Only a full-screen quad is drawn, so no depth or stencil buffer is used.
 	glDrawBuffer(GL_BACK);
-	glEnable(GL_DEPTH_TEST);
-	glDisable(GL_STENCIL_TEST);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT);
 	if (flag == 1) {
 		// Keep the exact kk that is about to be presented. Key input can then
 		// freeze this frame instead of the next frame in the sequence.
 		displayedKk = kk;
 
 
-		glDisable(GL_TEXTURE_2D);
-
 		if (mrk == 1) {
 			// 動画表示モード。
 
 
 
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedVideo(VideoMode->getVideoTextureID()); // 動画を描画する。
-		//	glUniform1f(glGetUniformLocation(videoshaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
-
-			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 
 		}
 		else {
 			// 静止画表示モード。
 
 			// 静止画用シェーダーで描画する。
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // 描画バッファーをクリアする。
 			glViewport(0, 0, IM_W, IM_H);
 			renderInterleavedImage();
-			//	glUniform1f(glGetUniformLocation(shaderProgram, "middleLinePx"), (float)MiddleLine / 3.0f);
-
-			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		}
 
 		// kk is advanced once after each V-Sync presentation.
 	}
 
 	else {
-		LoadStillImageTextures();
+		// Images are preloaded; this only selects the textures.
+		if (!SelectStillImage(img)) img = CurrentStillImage();
 
 		qq = 0;
 		flag = 1;
