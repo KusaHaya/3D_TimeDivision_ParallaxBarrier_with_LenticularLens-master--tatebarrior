@@ -41,26 +41,46 @@ void init(void) {
 }
 
 // Aggregate timings only; never print once per frame.
+// A single Arduino write longer than this is reported. One byte at 115200 baud
+// is ~0.09 ms on the wire and a USB full-speed frame is 1 ms, so a longer
+// wait means the driver or the Arduino side held the render thread.
+const double SerialWarnMs = 1.0;
+
 void ReportFrameTiming(FrameClock::time_point begin, FrameClock::time_point beforeSwap,
-    FrameClock::time_point afterSwap, FrameClock::time_point afterSerial)
+    FrameClock::time_point afterSwap, FrameClock::time_point beforeSerial,
+    FrameClock::time_point afterSerial)
 {
     static auto lastReport = FrameClock::now();
     static unsigned frames = 0;
-    static double drawMs = 0, swapMs = 0, serialMs = 0;
+    static double drawMs = 0, swapMs = 0, serialMs = 0, serialMaxMs = 0;
+    static unsigned slowSerial = 0;
+    static bool warnedSerial = false;
+    static FrameClock::time_point lastSerialWarning;
     auto ms = [](FrameClock::time_point a, FrameClock::time_point b) {
         return std::chrono::duration<double, std::milli>(b-a).count();
     };
+    const double thisSerialMs = ms(beforeSerial, afterSerial);
     ++frames;
     drawMs += ms(begin, beforeSwap);
     swapMs += ms(beforeSwap, afterSwap);
-    serialMs += ms(afterSwap, afterSerial);
+    serialMs += thisSerialMs;
+    if (thisSerialMs > serialMaxMs) serialMaxMs = thisSerialMs;
+    if (thisSerialMs > SerialWarnMs) {
+        ++slowSerial;
+        if (!warnedSerial || afterSerial - lastSerialWarning >= std::chrono::seconds(1)) {
+            printf("[SERIAL] Arduino write took %.3f ms (limit %.1f ms), kk=%d\n",
+                thisSerialMs, SerialWarnMs, displayedKk);
+            lastSerialWarning = afterSerial;
+            warnedSerial = true;
+        }
+    }
     const double elapsed = std::chrono::duration<double>(afterSerial-lastReport).count();
     if (elapsed >= 2.0) {
-        printf("[PERF] %.1f FPS | draw %.2f ms | swap %.2f ms | serial %.2f ms | dropped %u (total %llu) | %s\n",
-            frames/elapsed, drawMs/frames, swapMs/frames, serialMs/frames,
+        printf("[PERF] %.1f FPS | draw %.2f ms | swap %.2f ms | serial avg %.3f / max %.3f ms (slow %u) | dropped %u (total %llu) | %s\n",
+            frames/elapsed, drawMs/frames, swapMs/frames, serialMs/frames, serialMaxMs, slowSerial,
             TakeDroppedFrames(), TotalDroppedFrames(),
             frameHoldMode ? "HOLD" : "RUN");
-        frames = 0; drawMs = swapMs = serialMs = 0; lastReport = afterSerial;
+        frames = 0; drawMs = swapMs = serialMs = serialMaxMs = 0; slowSerial = 0; lastReport = afterSerial;
     }
 }
 
@@ -135,6 +155,8 @@ void disp(void) {
 	if (frameHoldMode) ResetFrameDropBaseline();
 	else RecordPresentedFrame(afterSwap);
 
+	// Measure only the Arduino write itself.
+	const auto beforeSerial = FrameClock::now();
 	// Send the hold command only after the selected display frame has been
 	// presented, then leave that backlight pair continuously on.
 	if (frameHoldMode && holdCommandPending) {
@@ -146,7 +168,9 @@ void disp(void) {
 		SendTimeDivisionFrame(displayedKk);
 	}
 
-	if (!frameHoldMode) ReportFrameTiming(frameBegin, beforeSwap, afterSwap, FrameClock::now());
+	const auto afterSerial = FrameClock::now();
+
+	if (!frameHoldMode) ReportFrameTiming(frameBegin, beforeSwap, afterSwap, beforeSerial, afterSerial);
 
 	// 提示したフレームに対応する時分割位相を進める。
 	if (running && !frameHoldMode) {

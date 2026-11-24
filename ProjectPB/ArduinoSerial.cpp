@@ -2,6 +2,7 @@
 #define NOMINMAX
 
 #include <boost/asio.hpp>
+#include <chrono>
 #include <stdio.h>
 #include "ArduinoSerial.h"
 
@@ -13,7 +14,17 @@ void SendArduinoCommand(int command) {
 		boost::system::error_code ec;
 		size_t bytes_written = boost::asio::write(arduinoSerial, boost::asio::buffer(&cmd, 1), ec);
 		if (ec || bytes_written != 1) {
-			printf("[ERROR] Arduino send failed: %s\n", ec.message().c_str());
+			// Sends run every frame; report the first failure, then at most once per second.
+			static unsigned failures = 0;
+			static bool reported = false;
+			static std::chrono::steady_clock::time_point lastReport;
+			const auto now = std::chrono::steady_clock::now();
+			++failures;
+			if (!reported || now - lastReport >= std::chrono::seconds(1)) {
+				printf("[ERROR] Arduino send failed: %s (failures: %u)\n", ec.message().c_str(), failures);
+				lastReport = now;
+				reported = true;
+			}
 		}
 	}
 	else {
