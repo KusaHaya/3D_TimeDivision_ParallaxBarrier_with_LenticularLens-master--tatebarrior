@@ -10,6 +10,7 @@
 #include "StillImage.h"
 #include "TimeDivision.h"
 #include "DisplayLoop.h"
+#include "FrameDropMonitor.h"
 #include <GL/glut.h>
 
 std::unique_ptr<vmlab::DrawVideo> VideoMode;
@@ -36,10 +37,10 @@ void init(void) {
 	printf("head-tracking: OFF\n");
 	printf("mode : SS\n");
 	printf("haba = %d\n", haba);
+	InitFrameDropMonitor();
 }
 
 // Aggregate timings only; never print once per frame.
-using FrameClock = std::chrono::steady_clock;
 void ReportFrameTiming(FrameClock::time_point begin, FrameClock::time_point beforeSwap,
     FrameClock::time_point afterSwap, FrameClock::time_point afterSerial)
 {
@@ -55,8 +56,9 @@ void ReportFrameTiming(FrameClock::time_point begin, FrameClock::time_point befo
     serialMs += ms(afterSwap, afterSerial);
     const double elapsed = std::chrono::duration<double>(afterSerial-lastReport).count();
     if (elapsed >= 2.0) {
-        printf("[PERF] %.1f FPS | draw %.2f ms | swap %.2f ms | serial %.2f ms | %s\n",
+        printf("[PERF] %.1f FPS | draw %.2f ms | swap %.2f ms | serial %.2f ms | dropped %u (total %llu) | %s\n",
             frames/elapsed, drawMs/frames, swapMs/frames, serialMs/frames,
+            TakeDroppedFrames(), TotalDroppedFrames(),
             frameHoldMode ? "HOLD" : "RUN");
         frames = 0; drawMs = swapMs = serialMs = 0; lastReport = afterSerial;
     }
@@ -120,12 +122,18 @@ void disp(void) {
 		flag = 1;
 		// Texture preparation is not a presented time-division frame. Keep the
 		// current front buffer and render kk=0 on the next display callback.
+		// The load stalls on purpose, so it is not counted as a dropped frame.
+		ResetFrameDropBaseline();
 		glutPostRedisplay();
 		return;
 	}
 	const auto beforeSwap = FrameClock::now();
 	glutSwapBuffers();
 	const auto afterSwap = FrameClock::now();
+
+	// A held frame is intentionally shown for many refreshes.
+	if (frameHoldMode) ResetFrameDropBaseline();
+	else RecordPresentedFrame(afterSwap);
 
 	// Send the hold command only after the selected display frame has been
 	// presented, then leave that backlight pair continuously on.

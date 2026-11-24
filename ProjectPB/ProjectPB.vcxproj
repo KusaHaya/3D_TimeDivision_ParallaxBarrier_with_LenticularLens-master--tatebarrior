@@ -250,6 +250,7 @@
     <ClCompile Include="ShaderLoader.cpp" />
     <ClCompile Include="StillImage.cpp" />
     <ClCompile Include="KeyInput.cpp" />
+    <ClCompile Include="FrameDropMonitor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="interleave.frag" />
@@ -275,6 +276,7 @@
     <ClInclude Include="ShaderLoader.h" />
     <ClInclude Include="StillImage.h" />
     <ClInclude Include="KeyInput.h" />
+    <ClInclude Include="FrameDropMonitor.h" />
   </ItemGroup>
   <!--
     The legacy project used to add the bundled Library directory only to the

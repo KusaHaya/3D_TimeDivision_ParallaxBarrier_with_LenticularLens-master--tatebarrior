@@ -5,6 +5,7 @@
 #include "AppState.h"
 #include "ArduinoSerial.h"
 #include "TimeDivision.h"
+#include "FrameDropMonitor.h"
 #include <GL/glut.h>
 
 void SendTimeDivisionFrame(int frameIndex)
@@ -36,6 +37,8 @@ void RestartTimeDivisionSync(const char* modeName)
 	running = 1;
 	kk = 0;
 	displayedKk = 0;
+	// Mode switches (e.g. video initialisation) stall on purpose.
+	ResetFrameDropBaseline();
 
 	SendArduinoCommand(RESET_SYNC);
 	SendArduinoCommand(ENABLE_TIMEDIVISION);

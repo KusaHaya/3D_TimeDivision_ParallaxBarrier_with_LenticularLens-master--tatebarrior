@@ -8,6 +8,7 @@
 | 固定値・共有状態 | `AppConfig.h`、`AppState.h/.cpp` | 画面サイズ、`haba`・`MiddleLine`・`kk` などのグローバル変数、カメラ設置位置 `PosX/PosY/PosZ` |
 | Arduino通信 | `ArduinoSerial.h/.cpp` | コマンド番号、シリアルを開く処理、1バイト送信 |
 | 時分割・フレーム停止 | `TimeDivision.h/.cpp` | 位相の送信、`t` / `q/w/e/r` の停止処理、同期のリセット |
+| コマ落ち検出 | `FrameDropMonitor.h/.cpp` | リフレッシュレートの取得、swap間隔からコマ落ちを数えて `[DROP]`・`[PERF]` に表示 |
 | ヘッドトラッキング | `HeadTracking.h/.cpp` | OSCの目の位置から `haba` と `MiddleLine` を補正（`h` で基準位置を設定） |
 | 静止画 | `StillImage.h/.cpp` | PPMの読み込み、左右テクスチャへの転送 |
 | シェーダー | `ShaderLoader.h/.cpp`、`InterleaveRenderer.h/.cpp` | シェーダーのコンパイル、uniformの設定、合成描画 |

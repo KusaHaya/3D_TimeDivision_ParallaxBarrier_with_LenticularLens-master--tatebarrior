@@ -36,6 +36,9 @@
     <ClCompile Include="TimeDivision.cpp">
       <Filter>時分割・Arduino</Filter>
     </ClCompile>
+    <ClCompile Include="FrameDropMonitor.cpp">
+      <Filter>時分割・Arduino</Filter>
+    </ClCompile>
     <ClCompile Include="HeadTracking.cpp">
       <Filter>トラッキング</Filter>
     </ClCompile>
@@ -81,6 +84,9 @@
       <Filter>時分割・Arduino</Filter>
     </ClInclude>
     <ClInclude Include="TimeDivision.h">
+      <Filter>時分割・Arduino</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameDropMonitor.h">
       <Filter>時分割・Arduino</Filter>
     </ClInclude>
     <ClInclude Include="HeadTracking.h">
