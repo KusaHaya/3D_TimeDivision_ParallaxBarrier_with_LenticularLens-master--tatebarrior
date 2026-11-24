@@ -63,7 +63,7 @@ vcpkgのパスは実際のインストール先に合わせてください。
 MSBuildのSHA256検証と配置処理を確認しています。
 exeを移動する際はこれらも一緒に移動します。
 Boost、FFmpeg、OpenGL、ArduinoのCOMポートなど、従来の描画装置の設定は引き続き必要です。
-`main.cpp` は従来どおりArduinoをCOM3で開くため、装置の接続状態を確認してください。
+`main.cpp` は従来どおりArduinoをCOM3（`PROJECTPB_SERIAL_PORT` で変更可）で開くため、装置の接続状態を確認してください。
 
 ## 動作
 
@@ -82,7 +82,7 @@ Boost、FFmpeg、OpenGL、ArduinoのCOMポートなど、従来の描画装置�
 横顔、遮蔽、眼鏡の反射では計測できない場合があります。
 
 座標は既存の描画側に合わせ、X左・Y上・Z前、単位メートルです。
-`main.cpp` の `PosX/PosY/PosZ` と `SIN/COS` はカメラ設置位置と角度に合わせて調整してください。
+`ProjectPB/AppState.cpp` の `PosX/PosY/PosZ` と `ProjectPB/AppConfig.h` の `SIN/COS` はカメラ設置位置と角度に合わせて調整してください。
 基準合わせの `h` だけでは設置角度の違いは補正できません。
 
 ## 検証状況

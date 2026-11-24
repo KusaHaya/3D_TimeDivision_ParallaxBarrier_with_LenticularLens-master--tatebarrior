@@ -241,6 +241,15 @@
     </None>
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Timer.cpp" />
+    <ClCompile Include="AppState.cpp" />
+    <ClCompile Include="ArduinoSerial.cpp" />
+    <ClCompile Include="TimeDivision.cpp" />
+    <ClCompile Include="HeadTracking.cpp" />
+    <ClCompile Include="DisplayLoop.cpp" />
+    <ClCompile Include="InterleaveRenderer.cpp" />
+    <ClCompile Include="ShaderLoader.cpp" />
+    <ClCompile Include="StillImage.cpp" />
+    <ClCompile Include="KeyInput.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="interleave.frag" />
@@ -256,6 +265,16 @@
     <ClInclude Include="RealSenseTrackingMath.h" />
     <ClInclude Include="TemporalEyeDetection.h" />
     <ClInclude Include="Texture.h" />
+    <ClInclude Include="AppConfig.h" />
+    <ClInclude Include="AppState.h" />
+    <ClInclude Include="ArduinoSerial.h" />
+    <ClInclude Include="TimeDivision.h" />
+    <ClInclude Include="HeadTracking.h" />
+    <ClInclude Include="DisplayLoop.h" />
+    <ClInclude Include="InterleaveRenderer.h" />
+    <ClInclude Include="ShaderLoader.h" />
+    <ClInclude Include="StillImage.h" />
+    <ClInclude Include="KeyInput.h" />
   </ItemGroup>
   <!--
     The legacy project used to add the bundled Library directory only to the

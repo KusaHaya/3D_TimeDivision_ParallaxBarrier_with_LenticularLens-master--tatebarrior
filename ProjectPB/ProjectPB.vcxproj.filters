@@ -1,68 +1,141 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    <Filter Include="アプリ本体">
+      <UniqueIdentifier>{93c832e5-6ed8-4f1b-80fb-972a132b980f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    <Filter Include="時分割・Arduino">
+      <UniqueIdentifier>{64fadc13-5426-48b3-9a17-4599bdfed7f3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Resource Files">
-      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    <Filter Include="トラッキング">
+      <UniqueIdentifier>{3026505f-6611-4192-83fc-87d62c61f0f5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="描画">
+      <UniqueIdentifier>{88d6db53-3ef6-4bbe-9abd-0a3b20ae6989}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="動画">
+      <UniqueIdentifier>{eff7d293-5faf-453e-ba4c-e20632f376cd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="キー入力">
+      <UniqueIdentifier>{9922b358-5885-4c3a-83c9-918aa623f4a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="シェーダー">
+      <UniqueIdentifier>{a8ff4843-3dbb-4f50-8e34-04f069a3fec3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>アプリ本体</Filter>
+    </ClCompile>
+    <ClCompile Include="AppState.cpp">
+      <Filter>アプリ本体</Filter>
+    </ClCompile>
+    <ClCompile Include="ArduinoSerial.cpp">
+      <Filter>時分割・Arduino</Filter>
+    </ClCompile>
+    <ClCompile Include="TimeDivision.cpp">
+      <Filter>時分割・Arduino</Filter>
+    </ClCompile>
+    <ClCompile Include="HeadTracking.cpp">
+      <Filter>トラッキング</Filter>
     </ClCompile>
     <ClCompile Include="ExternalEyeTracker.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>トラッキング</Filter>
     </ClCompile>
-    <ClCompile Include="Media.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="DisplayLoop.cpp">
+      <Filter>描画</Filter>
     </ClCompile>
-    <ClCompile Include="Texture.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="InterleaveRenderer.cpp">
+      <Filter>描画</Filter>
+    </ClCompile>
+    <ClCompile Include="ShaderLoader.cpp">
+      <Filter>描画</Filter>
+    </ClCompile>
+    <ClCompile Include="StillImage.cpp">
+      <Filter>描画</Filter>
     </ClCompile>
     <ClCompile Include="DrawVideo.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>動画</Filter>
+    </ClCompile>
+    <ClCompile Include="Media.cpp">
+      <Filter>動画</Filter>
+    </ClCompile>
+    <ClCompile Include="Texture.cpp">
+      <Filter>動画</Filter>
     </ClCompile>
     <ClCompile Include="Timer.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>動画</Filter>
     </ClCompile>
+    <ClCompile Include="KeyInput.cpp">
+      <Filter>キー入力</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AppConfig.h">
+      <Filter>アプリ本体</Filter>
+    </ClInclude>
+    <ClInclude Include="AppState.h">
+      <Filter>アプリ本体</Filter>
+    </ClInclude>
+    <ClInclude Include="ArduinoSerial.h">
+      <Filter>時分割・Arduino</Filter>
+    </ClInclude>
+    <ClInclude Include="TimeDivision.h">
+      <Filter>時分割・Arduino</Filter>
+    </ClInclude>
+    <ClInclude Include="HeadTracking.h">
+      <Filter>トラッキング</Filter>
+    </ClInclude>
+    <ClInclude Include="ExternalEyeTracker.h">
+      <Filter>トラッキング</Filter>
+    </ClInclude>
+    <ClInclude Include="OscEyePacket.h">
+      <Filter>トラッキング</Filter>
+    </ClInclude>
+    <ClInclude Include="RealSenseTrackingMath.h">
+      <Filter>トラッキング</Filter>
+    </ClInclude>
+    <ClInclude Include="TemporalEyeDetection.h">
+      <Filter>トラッキング</Filter>
+    </ClInclude>
+    <ClInclude Include="DisplayLoop.h">
+      <Filter>描画</Filter>
+    </ClInclude>
+    <ClInclude Include="InterleaveRenderer.h">
+      <Filter>描画</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderLoader.h">
+      <Filter>描画</Filter>
+    </ClInclude>
+    <ClInclude Include="StillImage.h">
+      <Filter>描画</Filter>
+    </ClInclude>
+    <ClInclude Include="DrawVideo.h">
+      <Filter>動画</Filter>
+    </ClInclude>
+    <ClInclude Include="Media.h">
+      <Filter>動画</Filter>
+    </ClInclude>
+    <ClInclude Include="Texture.h">
+      <Filter>動画</Filter>
+    </ClInclude>
+    <ClInclude Include="KeyInput.h">
+      <Filter>キー入力</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="passthrough.vert">
-      <Filter>Source Files</Filter>
+      <Filter>シェーダー</Filter>
+    </None>
+    <None Include="interleave.frag">
+      <Filter>シェーダー</Filter>
+    </None>
+    <None Include="sbs_interleave.frag">
+      <Filter>シェーダー</Filter>
     </None>
     <None Include="simpleTexture.frag">
-      <Filter>Source Files</Filter>
+      <Filter>シェーダー</Filter>
     </None>
-    <None Include="sbs_interleave.frag" />
-    <None Include="interleave.frag" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="OscEyePacket.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ExternalEyeTracker.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RealSenseTrackingMath.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Media.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Texture.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="DrawVideo.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>
